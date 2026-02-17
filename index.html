@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF &rarr; DCC Konverter</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.mjs" type="module"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>PDF &rarr; DCC Konverter</h1>
+            <p class="subtitle">Kalibrierzertifikate (PDF) in Digitale Kalibrierzertifikate (DCC v3.3.0) umwandeln</p>
+        </header>
+
+        <!-- Step 1: API Key -->
+        <section id="step-apikey" class="step active">
+            <div class="step-header">
+                <span class="step-number">1</span>
+                <h2>Claude API-Key</h2>
+            </div>
+            <div class="step-content">
+                <p>Gib Deinen Anthropic API-Key ein. Der Key wird nur lokal im Browser verwendet und nicht gespeichert.</p>
+                <div class="input-group">
+                    <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." autocomplete="off">
+                    <button id="btn-save-key" class="btn btn-primary">Speichern</button>
+                </div>
+                <p id="api-key-status" class="status-text"></p>
+            </div>
+        </section>
+
+        <!-- Step 2: PDF Upload -->
+        <section id="step-upload" class="step">
+            <div class="step-header">
+                <span class="step-number">2</span>
+                <h2>PDF hochladen</h2>
+            </div>
+            <div class="step-content">
+                <div id="drop-zone" class="drop-zone">
+                    <div class="drop-zone-content">
+                        <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <p>PDF hier ablegen oder <label for="file-input" class="file-label">Datei ausw&auml;hlen</label></p>
+                        <input type="file" id="file-input" accept=".pdf" hidden>
+                    </div>
+                </div>
+                <div id="file-info" class="file-info hidden">
+                    <span id="file-name"></span>
+                    <button id="btn-remove-file" class="btn btn-small">&times;</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 3: Extraction -->
+        <section id="step-extract" class="step">
+            <div class="step-header">
+                <span class="step-number">3</span>
+                <h2>Daten extrahieren</h2>
+            </div>
+            <div class="step-content">
+                <button id="btn-extract" class="btn btn-primary" disabled>PDF analysieren &amp; Daten extrahieren</button>
+                <div id="extraction-progress" class="progress-container hidden">
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                    <p id="progress-text" class="progress-text">PDF wird gelesen...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 4: Preview & Edit -->
+        <section id="step-preview" class="step">
+            <div class="step-header">
+                <span class="step-number">4</span>
+                <h2>Vorschau &amp; Bearbeitung</h2>
+            </div>
+            <div class="step-content">
+                <div id="preview-tabs" class="tabs">
+                    <button class="tab active" data-tab="tab-admin">Verwaltungsdaten</button>
+                    <button class="tab" data-tab="tab-items">Pr&uuml;fmittel</button>
+                    <button class="tab" data-tab="tab-results">Messergebnisse</button>
+                    <button class="tab" data-tab="tab-xml">XML Vorschau</button>
+                </div>
+
+                <!-- Admin Data Tab -->
+                <div id="tab-admin" class="tab-content active">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="field-cert-id">Zertifikatsnummer</label>
+                            <input type="text" id="field-cert-id" data-path="coreData.uniqueIdentifier">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-country">L&auml;ndercode (ISO 3166)</label>
+                            <input type="text" id="field-country" data-path="coreData.countryCodeISO3166_1" maxlength="2" placeholder="DE">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-begin-date">Kalibrierdatum (Beginn)</label>
+                            <input type="date" id="field-begin-date" data-path="coreData.beginPerformanceDate">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-end-date">Kalibrierdatum (Ende)</label>
+                            <input type="date" id="field-end-date" data-path="coreData.endPerformanceDate">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="field-lab-name">Kalibrierlaboratorium</label>
+                            <input type="text" id="field-lab-name" data-path="calibrationLaboratory.name">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="field-lab-street">Stra&szlig;e</label>
+                            <input type="text" id="field-lab-street" data-path="calibrationLaboratory.street">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-lab-zip">PLZ</label>
+                            <input type="text" id="field-lab-zip" data-path="calibrationLaboratory.postCode">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-lab-city">Ort</label>
+                            <input type="text" id="field-lab-city" data-path="calibrationLaboratory.city">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="field-customer-name">Auftraggeber</label>
+                            <input type="text" id="field-customer-name" data-path="customer.name">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="field-customer-street">Stra&szlig;e</label>
+                            <input type="text" id="field-customer-street" data-path="customer.street">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-customer-zip">PLZ</label>
+                            <input type="text" id="field-customer-zip" data-path="customer.postCode">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-customer-city">Ort</label>
+                            <input type="text" id="field-customer-city" data-path="customer.city">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="field-resp-person">Verantwortliche Person</label>
+                            <input type="text" id="field-resp-person" data-path="respPerson.name">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Items Tab -->
+                <div id="tab-items" class="tab-content">
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label for="field-item-name">Bezeichnung des Pr&uuml;flings</label>
+                            <input type="text" id="field-item-name" data-path="item.name">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-item-manufacturer">Hersteller</label>
+                            <input type="text" id="field-item-manufacturer" data-path="item.manufacturer">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-item-model">Modell / Typ</label>
+                            <input type="text" id="field-item-model" data-path="item.model">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-item-serial">Seriennummer</label>
+                            <input type="text" id="field-item-serial" data-path="item.serialNumber">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-item-id">Inventarnummer / ID</label>
+                            <input type="text" id="field-item-id" data-path="item.inventoryNumber">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Tab -->
+                <div id="tab-results" class="tab-content">
+                    <div id="results-container">
+                        <p class="placeholder-text">Messergebnisse werden nach der Extraktion hier angezeigt.</p>
+                    </div>
+                </div>
+
+                <!-- XML Preview Tab -->
+                <div id="tab-xml" class="tab-content">
+                    <pre id="xml-preview" class="xml-preview"><code>XML wird nach der Extraktion hier angezeigt.</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 5: Download -->
+        <section id="step-download" class="step">
+            <div class="step-header">
+                <span class="step-number">5</span>
+                <h2>DCC herunterladen</h2>
+            </div>
+            <div class="step-content">
+                <div class="button-group">
+                    <button id="btn-generate-xml" class="btn btn-primary" disabled>DCC XML generieren</button>
+                    <button id="btn-download" class="btn btn-success" disabled>XML herunterladen</button>
+                </div>
+                <div id="validation-messages" class="validation-messages hidden"></div>
+            </div>
+        </section>
+
+        <footer>
+            <p>DCC Schema v3.3.0 &middot; <a href="https://ptb.de/dcc/" target="_blank">PTB DCC</a> &middot; <a href="https://wiki.dcc.ptb.de/" target="_blank">DCC Wiki</a></p>
+        </footer>
+    </div>
+
+    <script type="module" src="js/pdf-extractor.js"></script>
+    <script type="module" src="js/claude-api.js"></script>
+    <script type="module" src="js/dcc-xml-generator.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
