@@ -81,92 +81,202 @@
             <div class="step-content">
                 <div id="preview-tabs" class="tabs">
                     <button class="tab active" data-tab="tab-admin">Verwaltungsdaten</button>
-                    <button class="tab" data-tab="tab-items">Pr&uuml;fmittel</button>
+                    <button class="tab" data-tab="tab-items">Pr&uuml;fling</button>
+                    <button class="tab" data-tab="tab-equipment">Messeinrichtungen</button>
                     <button class="tab" data-tab="tab-results">Messergebnisse</button>
+                    <button class="tab" data-tab="tab-statements">Konformit&auml;t</button>
                     <button class="tab" data-tab="tab-xml">XML Vorschau</button>
                 </div>
 
                 <!-- Admin Data Tab -->
                 <div id="tab-admin" class="tab-content active">
+                    <h3 class="section-title">Stammdaten</h3>
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="field-cert-id">Zertifikatsnummer</label>
-                            <input type="text" id="field-cert-id" data-path="coreData.uniqueIdentifier">
+                            <input type="text" id="field-cert-id">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-cal-mark">Kalibrierzeichen</label>
+                            <input type="text" id="field-cal-mark">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-order-number">Auftragsnummer</label>
+                            <input type="text" id="field-order-number">
                         </div>
                         <div class="form-group">
                             <label for="field-country">L&auml;ndercode (ISO 3166)</label>
-                            <input type="text" id="field-country" data-path="coreData.countryCodeISO3166_1" maxlength="2" placeholder="DE">
+                            <input type="text" id="field-country" maxlength="2" placeholder="DE">
                         </div>
                         <div class="form-group">
                             <label for="field-begin-date">Kalibrierdatum (Beginn)</label>
-                            <input type="date" id="field-begin-date" data-path="coreData.beginPerformanceDate">
+                            <input type="date" id="field-begin-date">
                         </div>
                         <div class="form-group">
                             <label for="field-end-date">Kalibrierdatum (Ende)</label>
-                            <input type="date" id="field-end-date" data-path="coreData.endPerformanceDate">
+                            <input type="date" id="field-end-date">
                         </div>
+                        <div class="form-group">
+                            <label for="field-perf-location">Kalibrierort</label>
+                            <select id="field-perf-location">
+                                <option value="laboratory">Labor</option>
+                                <option value="customer">Beim Kunden</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <h3 class="section-title">Kalibrierlaboratorium</h3>
+                    <div class="form-grid">
                         <div class="form-group full-width">
-                            <label for="field-lab-name">Kalibrierlaboratorium</label>
-                            <input type="text" id="field-lab-name" data-path="calibrationLaboratory.name">
+                            <label for="field-lab-name">Name</label>
+                            <input type="text" id="field-lab-name">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-lab-code">Akkreditierungscode</label>
+                            <input type="text" id="field-lab-code">
                         </div>
                         <div class="form-group full-width">
                             <label for="field-lab-street">Stra&szlig;e</label>
-                            <input type="text" id="field-lab-street" data-path="calibrationLaboratory.street">
+                            <input type="text" id="field-lab-street">
                         </div>
                         <div class="form-group">
                             <label for="field-lab-zip">PLZ</label>
-                            <input type="text" id="field-lab-zip" data-path="calibrationLaboratory.postCode">
+                            <input type="text" id="field-lab-zip">
                         </div>
                         <div class="form-group">
                             <label for="field-lab-city">Ort</label>
-                            <input type="text" id="field-lab-city" data-path="calibrationLaboratory.city">
+                            <input type="text" id="field-lab-city">
                         </div>
+                        <div class="form-group">
+                            <label for="field-lab-phone">Telefon</label>
+                            <input type="text" id="field-lab-phone">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-lab-fax">Fax</label>
+                            <input type="text" id="field-lab-fax">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-lab-email">E-Mail</label>
+                            <input type="text" id="field-lab-email">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-lab-website">Website</label>
+                            <input type="text" id="field-lab-website">
+                        </div>
+                    </div>
+
+                    <h3 class="section-title">Auftraggeber</h3>
+                    <div class="form-grid">
                         <div class="form-group full-width">
-                            <label for="field-customer-name">Auftraggeber</label>
-                            <input type="text" id="field-customer-name" data-path="customer.name">
+                            <label for="field-customer-name">Name</label>
+                            <input type="text" id="field-customer-name">
                         </div>
                         <div class="form-group full-width">
                             <label for="field-customer-street">Stra&szlig;e</label>
-                            <input type="text" id="field-customer-street" data-path="customer.street">
+                            <input type="text" id="field-customer-street">
                         </div>
                         <div class="form-group">
                             <label for="field-customer-zip">PLZ</label>
-                            <input type="text" id="field-customer-zip" data-path="customer.postCode">
+                            <input type="text" id="field-customer-zip">
                         </div>
                         <div class="form-group">
                             <label for="field-customer-city">Ort</label>
-                            <input type="text" id="field-customer-city" data-path="customer.city">
+                            <input type="text" id="field-customer-city">
                         </div>
-                        <div class="form-group full-width">
-                            <label for="field-resp-person">Verantwortliche Person</label>
-                            <input type="text" id="field-resp-person" data-path="respPerson.name">
+                        <div class="form-group">
+                            <label for="field-customer-contact">Ansprechpartner</label>
+                            <input type="text" id="field-customer-contact">
                         </div>
+                    </div>
+
+                    <h3 class="section-title">Verantwortliche Personen</h3>
+                    <div id="resp-persons-container">
+                        <p class="placeholder-text">Personen werden nach der Extraktion hier angezeigt.</p>
                     </div>
                 </div>
 
                 <!-- Items Tab -->
                 <div id="tab-items" class="tab-content">
+                    <h3 class="section-title">Pr&uuml;fling / Kalibriergegenstand</h3>
                     <div class="form-grid">
                         <div class="form-group full-width">
-                            <label for="field-item-name">Bezeichnung des Pr&uuml;flings</label>
-                            <input type="text" id="field-item-name" data-path="item.name">
+                            <label for="field-item-name">Bezeichnung</label>
+                            <input type="text" id="field-item-name">
                         </div>
                         <div class="form-group">
                             <label for="field-item-manufacturer">Hersteller</label>
-                            <input type="text" id="field-item-manufacturer" data-path="item.manufacturer">
+                            <input type="text" id="field-item-manufacturer">
                         </div>
                         <div class="form-group">
                             <label for="field-item-model">Modell / Typ</label>
-                            <input type="text" id="field-item-model" data-path="item.model">
+                            <input type="text" id="field-item-model">
                         </div>
                         <div class="form-group">
                             <label for="field-item-serial">Seriennummer</label>
-                            <input type="text" id="field-item-serial" data-path="item.serialNumber">
+                            <input type="text" id="field-item-serial">
                         </div>
                         <div class="form-group">
-                            <label for="field-item-id">Inventarnummer / ID</label>
-                            <input type="text" id="field-item-id" data-path="item.inventoryNumber">
+                            <label for="field-item-id">Inventarnummer</label>
+                            <input type="text" id="field-item-id">
                         </div>
+                        <div class="form-group">
+                            <label for="field-item-equip-nr">Equipment-Nr.</label>
+                            <input type="text" id="field-item-equip-nr">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-item-test-equip-nr">Pr&uuml;fmittel-Nr.</label>
+                            <input type="text" id="field-item-test-equip-nr">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-item-tag-nr">Tag-Nr.</label>
+                            <input type="text" id="field-item-tag-nr">
+                        </div>
+                    </div>
+
+                    <h3 class="section-title">Mess-Details</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="field-item-parameter">Messparameter</label>
+                            <input type="text" id="field-item-parameter" placeholder="z.B. Temperatur, Volume">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-item-range">Messbereich</label>
+                            <input type="text" id="field-item-range" placeholder="z.B. 0...200 l">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-item-signal">Signalausgang</label>
+                            <input type="text" id="field-item-signal" placeholder="z.B. 4...20 mA">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-item-cal-range">Kalibrierbereich</label>
+                            <input type="text" id="field-item-cal-range" placeholder="z.B. 0...200 l">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-item-medium">Medium</label>
+                            <input type="text" id="field-item-medium" placeholder="z.B. OIL, Wasser">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="field-item-description">Beschreibung</label>
+                            <textarea id="field-item-description" rows="2"></textarea>
+                        </div>
+                    </div>
+
+                    <h3 class="section-title">Zubeh&ouml;r / Komponenten</h3>
+                    <div id="accessories-container">
+                        <p class="placeholder-text">Zubeh&ouml;r wird nach der Extraktion hier angezeigt.</p>
+                    </div>
+                </div>
+
+                <!-- Equipment Tab -->
+                <div id="tab-equipment" class="tab-content">
+                    <h3 class="section-title">Messeinrichtungen / Referenznormale</h3>
+                    <div id="equipment-container">
+                        <p class="placeholder-text">Messeinrichtungen werden nach der Extraktion hier angezeigt.</p>
+                    </div>
+
+                    <h3 class="section-title">Kalibrierverfahren (SOPs)</h3>
+                    <div id="sops-container">
+                        <p class="placeholder-text">SOPs werden nach der Extraktion hier angezeigt.</p>
                     </div>
                 </div>
 
@@ -174,6 +284,21 @@
                 <div id="tab-results" class="tab-content">
                     <div id="results-container">
                         <p class="placeholder-text">Messergebnisse werden nach der Extraktion hier angezeigt.</p>
+                    </div>
+                </div>
+
+                <!-- Statements Tab -->
+                <div id="tab-statements" class="tab-content">
+                    <h3 class="section-title">Konformit&auml;tsaussagen</h3>
+                    <div id="statements-container">
+                        <p class="placeholder-text">Konformit&auml;tsaussagen werden nach der Extraktion hier angezeigt.</p>
+                    </div>
+
+                    <h3 class="section-title">Bemerkungen</h3>
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <textarea id="field-remarks" rows="3" placeholder="Bemerkungen / Remarks"></textarea>
+                        </div>
                     </div>
                 </div>
 
