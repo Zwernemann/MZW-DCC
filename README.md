@@ -1,118 +1,245 @@
-# DCC Converter
+# DCC Converter — Automated Transformation of Proprietary Calibration XML into Digital Calibration Certificates
 
-Convert calibration certificates into **Digital Calibration Certificates (DCC v3.3.0)** conforming to the [PTB DCC standard](https://ptb.de/dcc/).
+## Background
+
+The Digital Calibration Certificate (DCC) is an XML-based, machine-readable and machine-interpretable format for the standardised exchange of calibration results. It represents the digital evolution of the traditional paper-based calibration certificate and fulfils all requirements of ISO/IEC 17025 while enabling automated integration into Industry 4.0 workflows. Machine-readable means that DCC data can be automatically imported into customer-specific IT systems; machine-interpretable means that the transmitted data can be correctly assigned and processed by IT systems without prior manual intervention or supplementary information.
+
+The DCC standard is maintained and advanced through the collaborative efforts of the Physikalisch-Technische Bundesanstalt (PTB), the Deutscher Kalibrierdienst (DKD) with its 13 specialised technical committees (Fachausschüsse covering quantities from DC/LF, high-frequency and optics, force and acoustics, length, temperature and humidity, pressure and vacuum, mass and balances, chemical measurands, materials testing, torque, flow, laboratory medicine, to measurement uncertainty), the Bundesanstalt für Materialforschung und -prüfung (BAM), and a broad community of national and international stakeholders from metrology institutes, accredited calibration laboratories, and industrial partners.
+
+The DCC schema structure is defined via an XSD (XML Schema Definition) file. It specifies how the DCC XML file is structured, which entries are present, where individual entries must be placed, and which element names are used. The current schema version 3.3.0 (with v3.4.0-rc.1 in testing) is format-independent and quantity-agnostic — a DCC can be created for any measurand. The schema is accompanied by the Digital System of Units (D-SI), a metadata model that provides a modular system for representing values of physical quantities uniformly and machine-readably in digital form, based on SI, VIM, and GUM principles. A refType thesaurus provides harmonised semantic annotations that enable machine-interpretability beyond mere structural conformance.
+
+Measurement-quantity-specific guidance is provided through a growing collection of expert reports (Expertenberichte): DKD-E 4-3 for gauge blocks, DKD-E 5-3 for temperature and humidity, DKD-E 7-2 and DKD-E 7-3 for weights and balances, DKD-E 11-1 for flow measurement quantities, and DKD-E 12-1 for laboratory medicine, with further reports in preparation. These expert reports describe the use of DCC elements, general conventions, and community-specific characteristics, and are accompanied by harmonised example DCCs that serve as templates for creating individual certificates.
+
+## Problem
+
+While the DCC defines a unified target structure, calibration laboratories and instrument manufacturers in practice operate with a wide variety of **proprietary XML data formats** — each defined by individual XSD schemas with domain-specific element hierarchies, naming conventions, and attribute semantics. These vendor-specific formats already exist in many organisations as structured, machine-readable XML data, yet they cannot be directly consumed as DCCs.
+
+Converting these heterogeneous source formats into schema-conformant DCCs currently requires either manual transcription or custom-built, format-specific transformation scripts. Both approaches are labour-intensive, error-prone, and difficult to maintain as source schemas evolve. The structural gap between proprietary calibration data models and the DCC schema — which encompasses administrative metadata, item identifications, measurement results with SI-traceable quantities and expanded uncertainties, influence conditions, conformity statements, responsible persons, and refType annotations — makes fully manual mapping impractical, particularly for complex industrial calibration certificates containing hundreds of data fields across deeply nested XML structures.
+
+## Approach
+
+This module addresses the problem through a two-phase workflow built around a reusable, JSON-based **mapping profile** that serves as an intermediate transformation layer between any source XML schema and a DCC-JSON intermediate format:
+
+**Phase 1 — Profile Generation (one-time, AI-assisted):** Given an XSD schema definition and a representative sample XML document, the system employs a large language model (Claude, Anthropic) to perform comprehensive schema analysis and automatically generate an exhaustive mapping profile. The profile encodes XPath-based extraction rules that map source elements and attributes to their corresponding DCC-JSON target fields — including scalar values, nested arrays of arbitrary depth, unit attributes, conformity flags, date conversions, value lookups, field concatenations, and template-based transformations. A visual mapping editor allows domain experts to review, refine, and extend the generated profile interactively through drag-and-drop, without programming knowledge.
+
+**Phase 2 — Conversion (repeatable, offline):** Once a mapping profile exists for a given source format, any XML document conforming to that schema can be transformed into a valid DCC XML document entirely client-side, without API calls or server infrastructure. The namespace-agnostic XPath engine resolves source paths regardless of XML namespace prefixes, and the DCC XML generator produces output conforming to the DCC v3.3.0 schema, including proper SI namespace handling for measurement quantities and expanded uncertainties.
+
+The mapping profile is portable (JSON), can be stored locally or shared across teams, and decouples the one-time schema analysis effort from the recurring conversion task — enabling scalable, reproducible DCC generation for any organisation that maintains calibration data in structured XML formats.
 
 ## Features
 
-### Three Conversion Modes
+### Conversion Modes
 
 | Mode | Input | Uses API? | Description |
 |------|-------|-----------|-------------|
-| **PDF Upload** | PDF calibration certificate | Yes (Claude) | AI-powered extraction of structured data from any PDF calibration certificate |
 | **XML Convert** | XML file | No | Instant local conversion using a saved mapping profile — no API calls needed |
 | **Train Mapping** | XSD schema + sample XML | Yes (once) | One-time AI training that generates a reusable mapping profile for a specific XML format |
+| **PDF Upload** | PDF calibration certificate | Yes (Claude) | AI-powered extraction of structured data from any PDF calibration certificate |
 
 ### How It Works
 
 ```
-PDF Upload:      PDF  ──Claude AI──▶  DCC-JSON  ──▶  DCC XML
-XML Convert:     XML  ──Mapping──▶    DCC-JSON  ──▶  DCC XML  (no API!)
-Train Mapping:   XSD + XML  ──Claude AI──▶  Mapping Profile (saved locally)
+Train Mapping:   XSD + XML  ──Claude AI──▶  Mapping Profile (JSON, saved locally)
+XML Convert:     XML  ──Mapping Profile──▶  DCC-JSON  ──▶  DCC XML v3.3.0  (no API!)
+PDF Upload:      PDF  ──Claude AI──▶        DCC-JSON  ──▶  DCC XML v3.3.0
 ```
+
+**Train Mapping** is a one-time setup step. You provide an XSD schema and a sample XML file, and Claude performs an exhaustive schema analysis to generate a mapping profile — a set of XPath-based rules that map your proprietary XML structure to the DCC-JSON intermediate format. The profile is saved in localStorage and can be exported/imported as JSON. A visual editor with drag-and-drop allows you to review, refine, and extend the generated mappings.
+
+**XML Convert** applies a previously trained mapping profile to transform structured XML data into DCC format. This runs entirely in the browser with zero API calls, making it fast, free, and private. Profiles are auto-detected based on XML namespace and root element.
 
 **PDF Upload** uses the Claude API to intelligently extract calibration data from unstructured PDF text — certificate numbers, measurement results, equipment details, conformity statements, and more.
 
-**XML Convert** applies a previously trained mapping profile to transform structured XML data into DCC format. This runs entirely in the browser with zero API calls, making it fast, free, and private.
+### Data Coverage
 
-**Train Mapping** is a one-time setup step. You provide an XSD schema and a sample XML file, and Claude generates a mapping profile (XPath-based rules) that maps your XML structure to the DCC-JSON intermediate format. The profile is saved in localStorage and can be exported/imported as JSON.
+The converter handles the full scope of DCC data as defined by the schema:
 
-## Data Extracted
+- **Core data** — Certificate number, calibration mark, order number, calibration dates, performance location, language and country codes, previous report reference
+- **Calibration laboratory** — Name, accreditation code, full address, contact details (phone, fax, e-mail, website)
+- **Customer** — Name, full address, contact person
+- **Responsible persons** — Names, roles, main signer identification
+- **Calibration items** — Manufacturer, model, serial number, inventory/equipment/test equipment/tag numbers, measuring range, signal output, calibration range, medium, description
+- **Accessories** — Type, description, serial number, manufacturer, model
+- **Measuring equipment** — Reference standards with traceability, certificate numbers, calibration dates, next calibration dates
+- **Measurement results** — As Found / As Left / Corrected categories with set points, nominal/reference/measured values, deviations, allowed deviations, uncertainties (with coverage factors and coverage probabilities), MPE, per-point conformity — all with SI units
+- **Influence conditions** — Temperature, humidity, barometric pressure (with min/max ranges and uncertainties)
+- **Calibration procedures** — SOPs with numbers, descriptions, versions, referenced norms
+- **Conformity statements** — Pass/fail assessments with decision rules, referenced norms, conformity probabilities
+- **Remarks** — Free-text comments and notes
 
-The converter handles comprehensive calibration certificate data:
+## Technical Implementation
 
-- **Core data** — Certificate number, calibration mark, order number, dates, location
-- **Laboratory** — Name, accreditation code, full address, contact details
-- **Customer** — Name, address, contact person
-- **Calibration items** — Manufacturer, model, serial number, equipment numbers, tag numbers, measuring range, medium
-- **Accessories** — Type, description, serial number
-- **Measuring equipment** — Reference standards with traceability, certificate numbers, calibration dates
-- **Measurement results** — As Found / As Left / Corrected values with set points, deviations, allowed deviations, uncertainties, coverage factors, per-point conformity
-- **Influence conditions** — Temperature, humidity, pressure (with min/max ranges)
-- **Calibration procedures** — SOPs, methods, norms
-- **Conformity statements** — Pass/fail assessments with decision rules and probabilities
-- **Remarks** — Free-text comments
+### Architecture
+
+The application is implemented as a pure client-side single-page application with zero backend dependencies. All processing — XML parsing, XPath evaluation, mapping execution, and DCC XML generation — runs entirely in the browser.
+
+```
+Source XML ──► Mapping Engine ──► DCC-JSON ──► DCC XML Generator ──► DCC v3.3.0 XML
+                    ▲                              │
+              Mapping Profile                 SI Namespace (D-SI)
+              (JSON, XPath rules)             DCC Namespace
+```
+
+### Modules
+
+| Module | Responsibility |
+|--------|---------------|
+| `mapping-engine.js` | Namespace-agnostic XPath engine that evaluates mapping profiles against source XML. Supports recursive array nesting to arbitrary depth, 12 mapping types (`string`, `number`, `integer`, `boolean`, `date`, `array`, `conformity`, `asFoundAsLeft`, `concat`, `static`, `template`, `lookup`, `firstOf`), and attribute/predicate-based element selection. Includes XML tree parser and path flattener for the visual editor. |
+| `mapping-trainer.js` | One-time AI-assisted profile generation. Sends XSD schema + sample XML to the Claude API with a comprehensive system prompt that documents the full DCC-JSON target schema, all mapping types with examples, and a systematic extraction checklist covering all 11 DCC data categories. Configured for up to 64,000 output tokens to handle complex schemas with hundreds of fields. |
+| `mapping-editor.js` | Interactive visual profile editor. Renders the mapping table with inline editing, coverage statistics against the full DCC target schema, an unmapped-fields section with clickable chips grouped by category, and a source XML tree explorer with HTML5 drag-and-drop for creating new mapping rules. Supports editing of nested array fields, type selection, and advanced mapping parameters (separators, templates, lookup maps). |
+| `mapping-store.js` | Profile persistence via `localStorage` with import/export as JSON files and auto-detection of matching profiles based on XML namespace and root element. |
+| `dcc-xml-generator.js` | Generates DCC v3.3.0 XML from the DCC-JSON intermediate format. Handles `dcc:` and `si:` namespace prefixes, `xsi:schemaLocation`, SI real quantities with expanded uncertainties (coverage factor, coverage probability), influence conditions with min/max ranges, per-point conformity, DCC list structures for tabular measurement results, and identification blocks with issuer semantics. |
+| `pdf-extractor.js` | PDF text extraction using PDF.js v4.9.155 for the PDF Upload mode. |
+| `claude-api.js` | Claude API integration for PDF-based data extraction. |
+| `app.js` | Main application controller managing all three modes, shared API key handling, tab/step management, and editor integration. |
+
+### Mapping Profile Format
+
+The mapping profile is a portable JSON document containing an ordered array of extraction rules. Each rule specifies an XPath-like source path, a DCC-JSON target path, and a type that controls value extraction and conversion:
+
+```json
+{
+  "name": "Vendor Calibration Profile",
+  "schemaNamespace": "urn:com:vendor:calibration",
+  "rootElement": "CalibrationData",
+  "mappings": [
+    {
+      "target": "coreData.uniqueIdentifier",
+      "source": "CertificateData/@certificateNumber",
+      "type": "string"
+    },
+    {
+      "target": "measurementResults[]",
+      "source": "CalibrationSettings/CalibrationSetting",
+      "type": "array",
+      "fields": [
+        { "target": "name", "source": "ParameterName", "type": "string" },
+        { "target": "category", "source": "Calibrations/Calibration", "type": "asFoundAsLeft" },
+        {
+          "target": "results[]",
+          "source": "Calibrations/Calibration/TestPoints/TestPoint",
+          "type": "array",
+          "fields": [
+            { "target": "setPoint", "source": "SetPoint", "type": "number" },
+            { "target": "setPointUnit", "source": "SetPoint/@unit", "type": "string" },
+            { "target": "measuredValue", "source": "UUTValue", "type": "number" },
+            { "target": "measuredUnit", "source": "UUTValue/@unit", "type": "string" },
+            { "target": "deviation", "source": "Deviations", "type": "number" },
+            { "target": "deviationUnit", "source": "Deviations/@unit", "type": "string" },
+            { "target": "uncertainty", "source": "Uncertainty", "type": "number" },
+            { "target": "uncertaintyUnit", "source": "Uncertainty/@unit", "type": "string" },
+            { "target": "conformity", "source": "@isConform", "type": "conformity" }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Supported Mapping Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `string` | Text content from element or attribute | `"source": "HeaderData/CertificateNumber"` |
+| `number` | Parsed as float | `"source": "SetPoint"` |
+| `integer` | Parsed as integer | `"source": "PointIndex"` |
+| `boolean` | `"true"`/`"1"` → true | `"source": "IsValid"` |
+| `date` | DateTime → `YYYY-MM-DD` | `"source": "CalibrationDateTime"` |
+| `array` | Repeating elements with nested `fields` (recursive) | See example above |
+| `conformity` | `@isConform` → `"pass"`/`"fail"` | `"source": "@isConform"` |
+| `asFoundAsLeft` | `@isAsFound`/`@isAsLeft` → category string | `"source": "Calibration"` |
+| `concat` | Combine multiple fields | `"sources": ["FirstName", "LastName"], "separator": " "` |
+| `static` | Fixed value, no source needed | `"value": "laboratory"` |
+| `template` | String template with indexed references | `"template": "{0} {1}", "sources": ["PostCode", "City"]` |
+| `lookup` | Map source values via lookup table | `"source": "Status", "map": {"OK": "pass", "NOK": "fail"}` |
+| `firstOf` | First non-null from multiple paths | `"sources": ["CompanyName", "OrganizationName"]` |
+
+### XPath Resolution
+
+All paths are resolved using a namespace-agnostic strategy: element names are matched via `local-name()` XPath functions, making the engine independent of whatever namespace prefixes the source XML uses. The first path step uses `descendant-or-self::` for root-relative resolution; subsequent steps resolve as direct children. Attribute predicates (e.g. `[@role='SoldTo']`) are supported for element selection within repeating structures.
+
+### DCC Schema Conformance
+
+The generated XML conforms to the DCC v3.3.0 schema (`https://ptb.de/dcc/v3.3.0/dcc.xsd`) and includes:
+
+- `dcc:digitalCalibrationCertificate` root element with correct `schemaVersion`, namespace declarations, and `xsi:schemaLocation`
+- `dcc:administrativeData` with core data, calibration items (with identification blocks using issuer semantics), calibration laboratory, responsible persons, customer, and statements
+- `dcc:measurementResults` with measuring equipments, influence conditions, and measurement results using `dcc:list` / `dcc:quantity` / `si:real` / `si:expandedUnc` structures
+- Bilingual content support (`dcc:content` with `lang` attribute)
 
 ## Getting Started
 
 ### Prerequisites
 
 - A modern web browser (Chrome, Firefox, Edge, Safari)
-- An [Anthropic API key](https://console.anthropic.com/) (only needed for PDF Upload and Train Mapping modes)
+- An [Anthropic API key](https://console.anthropic.com/) (only needed for Train Mapping and PDF Upload modes; XML Convert runs fully offline)
 
 ### Running Locally
 
-Simply open `index.html` in your browser — no build step or server required.
+Simply serve the files via a local HTTP server — no build step required.
 
 ```bash
 # Clone the repository
 git clone <repo-url>
 cd MZW-DCC
 
-# Open in browser
-open index.html
-# or
-python3 -m http.server 8080  # then visit http://localhost:8080
+# Serve via Python (required for ES module imports)
+python3 -m http.server 8080
+# then visit http://localhost:8080
 ```
 
-> **Note:** Due to ES module imports, you may need to serve the files via a local HTTP server (e.g., `python3 -m http.server`) rather than opening `index.html` directly as a `file://` URL.
+> **Note:** Due to ES module imports, the files must be served via HTTP. Opening `index.html` directly as a `file://` URL will not work.
 
 ### Usage
 
-#### Mode A: PDF Upload
+#### Train Mapping (one-time setup per XML format)
+1. Enter your Anthropic API key
+2. Name your profile and upload the XSD schema + a sample XML file
+3. Click "Train Mapping with Claude"
+4. Review and refine the generated profile in the visual editor (drag-and-drop source paths, edit rules inline, add missing mappings)
+5. Save the profile to localStorage or export as JSON for sharing
+
+#### XML Convert (repeatable, offline)
+1. Select a saved mapping profile (or import one from JSON) — profiles are auto-detected when you upload an XML file
+2. Upload your XML calibration data file
+3. Click "Convert XML to DCC" — the conversion runs locally, no API needed
+4. Review the JSON data and DCC XML previews
+5. Download the DCC XML
+
+#### PDF Upload
 1. Enter your Anthropic API key
 2. Upload a PDF calibration certificate
 3. Click "Analyze PDF & Extract Data"
 4. Review and edit the extracted data in the preview tabs
 5. Generate and download the DCC XML
 
-#### Mode B: XML Convert
-1. Select a saved mapping profile (or import one from JSON)
-2. Upload your XML calibration data file
-3. Click "Convert XML to DCC" — the conversion runs locally, no API needed
-4. Review the JSON data and DCC XML previews
-5. Download the DCC XML
-
-#### Mode C: Train Mapping
-1. Enter your Anthropic API key
-2. Name your profile and upload the XSD schema + a sample XML file
-3. Click "Train Mapping with Claude"
-4. Review the generated mapping profile
-5. Save it to localStorage or export as JSON for sharing
-
 ## Project Structure
 
 ```
 MZW-DCC/
-├── index.html              # Main application (English UI)
+├── index.html               # Main application (English UI, 3 modes)
 ├── css/
-│   └── style.css           # Complete styling
+│   └── style.css            # Complete styling incl. mapping editor
 ├── js/
-│   ├── app.js              # Main controller (3 modes)
-│   ├── pdf-extractor.js    # PDF.js text extraction
-│   ├── claude-api.js       # Claude API for PDF extraction
-│   ├── dcc-xml-generator.js # DCC XML v3.3.0 generation
-│   ├── mapping-engine.js   # XPath-based XML→DCC-JSON converter
-│   ├── mapping-store.js    # localStorage profile management
-│   └── mapping-trainer.js  # Claude API for mapping training
+│   ├── app.js               # Main controller (3 modes, editor integration)
+│   ├── mapping-engine.js    # XPath-based XML→DCC-JSON converter (12 types, recursive)
+│   ├── mapping-trainer.js   # Claude API for exhaustive mapping training
+│   ├── mapping-editor.js    # Interactive visual profile editor (drag & drop)
+│   ├── mapping-store.js     # localStorage profile management
+│   ├── dcc-xml-generator.js # DCC XML v3.3.0 generation (dcc: + si: namespaces)
+│   ├── pdf-extractor.js     # PDF.js text extraction
+│   └── claude-api.js        # Claude API for PDF extraction
 └── README.md
 ```
 
 ## Technology
 
-- **Pure client-side** — No backend server required
+- **Pure client-side** — No backend server required; all processing in the browser
 - **PDF.js** (v4.9.155) — PDF text extraction in the browser
-- **Claude API** (claude-sonnet-4-20250514) — AI-powered data extraction and schema analysis
-- **DCC v3.3.0** — PTB Digital Calibration Certificate standard
+- **Claude API** (claude-sonnet-4-20250514) — AI-powered schema analysis and data extraction
+- **DCC v3.3.0** — Digital Calibration Certificate schema standard
+- **D-SI** — Digital System of Units for SI-traceable quantity representation
 - **Namespace-agnostic XPath** — Mapping engine works with any XML namespace
 
 ## Privacy
@@ -122,12 +249,17 @@ MZW-DCC/
 - Mapping profiles are stored in your browser's localStorage
 - XML Convert mode runs entirely offline — no data leaves your browser
 
-## DCC Standard
-
-This tool generates XML conforming to the [DCC v3.3.0 schema](https://ptb.de/dcc/v3.3.0/dcc.xsd) from the Physikalisch-Technische Bundesanstalt (PTB).
+## References
 
 - [PTB DCC Homepage](https://ptb.de/dcc/)
-- [DCC Wiki](https://wiki.dcc.ptb.de/)
+- [DCC Schema v3.3.0 (XSD)](https://ptb.de/dcc/v3.3.0/dcc.xsd)
+- [DCC Schema Repository (GitLab)](https://gitlab.com/ptb/dcc/xsd-dcc)
+- [DCC Schema v3.4.0-rc.1 (XSD)](https://ptb.de/dcc/v3.4.0-rc.1/dcc.xsd)
+- [DCC Wiki](https://dccwiki.ptb.de/)
+- [refType Thesaurus](https://digilab.ptb.de/dkd/refType/vocab/)
+- [D-SI Repository (PTB GitLab)](https://gitlab1.ptb.de/siunit/d-si)
+- [GEMIMEG-Tool 2](https://gemimeg-tool.ptb.de)
+- [DCC2GO — Start working with DCCs](https://www.ptb.de/empir2021/dcc2go/)
 
 ## License
 
