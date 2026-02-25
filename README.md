@@ -2,7 +2,7 @@
 
 ## Background
 
-The **Digital Calibration Certificate (DCC)** is an XML-based, machine-readable and machine-interpretable format for the standardised exchange of calibration results, fulfilling ISO/IEC 17025 requirements while enabling Industry 4.0 integration. The standard is maintained by PTB, DKD (with 13 Fachausschüsse), BAM, and a broad international community of metrology institutes, accredited labs, and industrial partners.
+The **Digital Calibration Certificate (DCC)** is an XML-based, machine-readable and machine-interpretable format for the standardised exchange of calibration results, fulfilling ISO/IEC 17025 requirements while enabling Industry 4.0 integration. The standard is maintained by PTB, DKD, BAM, and a broad international community of metrology institutes, accredited labs, and industrial partners.
 
 The DCC schema (current v3.3.0, v3.4.0-rc.1 in testing) is quantity-agnostic and accompanied by the Digital System of Units (D-SI) for SI-traceable quantity representation and a refType thesaurus for semantic annotations. Measurement-specific guidance is provided through DKD expert reports for various measurands.
 
@@ -255,7 +255,7 @@ MZW-DCC/
 - [refType Thesaurus](https://digilab.ptb.de/dkd/refType/vocab/)
 - [D-SI Repository (PTB GitLab)](https://gitlab1.ptb.de/siunit/d-si)
 - [GEMIMEG-Tool 2](https://gemimeg-tool.ptb.de)
-- [DCC2GO — Start working with DCCs](https://www.ptb.de/empir2021/dcc2go/)
+
 
 ## License
 
