@@ -1,11 +1,14 @@
 /**
- * Main application controller for the PDF-to-DCC Converter.
- * Connects PDF extraction, Claude API, and DCC XML generation.
+ * Main application controller for the DCC Converter.
+ * Supports three modes: PDF Upload, XML Convert, and Train Mapping.
  */
 
 import { extractTextFromPdf } from './pdf-extractor.js';
 import { extractCalibrationData, validateApiKey } from './claude-api.js';
 import { generateDccXml, validateData } from './dcc-xml-generator.js';
+import { convertXmlToDccJson } from './mapping-engine.js';
+import { getAllProfiles, saveProfile, getProfile, deleteProfile, exportProfile, importProfile, detectProfileForXml } from './mapping-store.js';
+import { trainMappingProfile } from './mapping-trainer.js';
 
 // ============================================================
 // State
@@ -18,217 +21,241 @@ let pdfMetadata = {};
 let extractedData = null;
 let generatedXml = '';
 
+// XML Convert mode state
+let xmlFile = null;
+let xmlContent = '';
+let selectedProfileId = '';
+let xmlConvertedData = null;
+let xmlGeneratedDcc = '';
+
+// Train mode state
+let trainXsdFile = null;
+let trainXsdContent = '';
+let trainXmlFile = null;
+let trainXmlContent = '';
+let trainedProfile = null;
+
 // ============================================================
-// DOM References
+// DOM Helpers
 // ============================================================
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
-// Steps
-const stepApikey = $('#step-apikey');
-const stepUpload = $('#step-upload');
-const stepExtract = $('#step-extract');
-const stepPreview = $('#step-preview');
-const stepDownload = $('#step-download');
-
-// API Key
-const apiKeyInput = $('#api-key-input');
-const btnSaveKey = $('#btn-save-key');
-const apiKeyStatus = $('#api-key-status');
-
-// Upload
-const dropZone = $('#drop-zone');
-const fileInput = $('#file-input');
-const fileInfo = $('#file-info');
-const fileName = $('#file-name');
-const btnRemoveFile = $('#btn-remove-file');
-
-// Extract
-const btnExtract = $('#btn-extract');
-const extractionProgress = $('#extraction-progress');
-const progressFill = $('#progress-fill');
-const progressText = $('#progress-text');
-
-// Preview
-const resultsContainer = $('#results-container');
-const xmlPreview = $('#xml-preview code');
-
-// Download
-const btnGenerateXml = $('#btn-generate-xml');
-const btnDownload = $('#btn-download');
-const validationMessages = $('#validation-messages');
-
 // ============================================================
-// Step Management
+// Mode Switching
 // ============================================================
 
-function activateStep(step) {
-    step.classList.add('active');
+for (const btn of $$('.mode-btn')) {
+    btn.addEventListener('click', () => {
+        const mode = btn.dataset.mode;
+
+        // Update buttons
+        for (const b of $$('.mode-btn')) b.classList.remove('active');
+        btn.classList.add('active');
+
+        // Update content
+        for (const mc of $$('.mode-content')) mc.classList.remove('active');
+        const target = $(`#mode-${mode}`);
+        if (target) target.classList.add('active');
+
+        // Sync API key across modes
+        syncApiKeyAcrossModes();
+
+        // Refresh profile lists when switching to xml or train mode
+        if (mode === 'xml') refreshXmlProfileSelect();
+        if (mode === 'train') refreshTrainProfilesList();
+    });
 }
 
-function completeStep(step) {
-    step.classList.add('completed');
+function syncApiKeyAcrossModes() {
+    if (apiKey) {
+        const pdfInput = $('#pdf-api-key-input');
+        const trainInput = $('#train-api-key-input');
+        if (pdfInput && !pdfInput.value) pdfInput.value = apiKey;
+        if (trainInput && !trainInput.value) trainInput.value = apiKey;
+    }
 }
 
 // ============================================================
-// API Key Handling
+// PDF MODE - API Key
 // ============================================================
 
-btnSaveKey.addEventListener('click', () => {
-    const key = apiKeyInput.value.trim();
+$('#pdf-btn-save-key')?.addEventListener('click', () => {
+    const key = $('#pdf-api-key-input').value.trim();
     if (!validateApiKey(key)) {
-        apiKeyStatus.textContent = 'Ungültiger API-Key. Er muss mit "sk-ant-" beginnen.';
-        apiKeyStatus.className = 'status-text error';
+        $('#pdf-api-key-status').textContent = 'Invalid API key. Must start with "sk-ant-".';
+        $('#pdf-api-key-status').className = 'status-text error';
         return;
     }
     apiKey = key;
-    apiKeyStatus.textContent = 'API-Key gespeichert (nur in dieser Sitzung).';
-    apiKeyStatus.className = 'status-text success';
-    completeStep(stepApikey);
-    activateStep(stepUpload);
+    $('#pdf-api-key-status').textContent = 'API key saved (session only).';
+    $('#pdf-api-key-status').className = 'status-text success';
+    completeStep($('#pdf-step-apikey'));
+    activateStep($('#pdf-step-upload'));
 });
 
-apiKeyInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') btnSaveKey.click();
+$('#pdf-api-key-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('#pdf-btn-save-key').click();
 });
 
 // ============================================================
-// File Upload / Drag & Drop
+// PDF MODE - File Upload
 // ============================================================
 
-function handleFile(file) {
+function handlePdfFile(file) {
     if (!file || file.type !== 'application/pdf') {
-        alert('Bitte eine PDF-Datei auswählen.');
+        alert('Please select a PDF file.');
         return;
     }
     pdfFile = file;
-    fileName.textContent = file.name;
-    fileInfo.classList.remove('hidden');
-    dropZone.style.display = 'none';
-    btnExtract.disabled = false;
-    activateStep(stepExtract);
+    $('#pdf-file-name').textContent = file.name;
+    $('#pdf-file-info').classList.remove('hidden');
+    $('#pdf-drop-zone').style.display = 'none';
+    $('#pdf-btn-extract').disabled = false;
+    activateStep($('#pdf-step-extract'));
 }
 
-dropZone.addEventListener('click', () => fileInput.click());
+$('#pdf-drop-zone')?.addEventListener('click', () => $('#pdf-file-input').click());
 
-dropZone.addEventListener('dragover', (e) => {
+$('#pdf-drop-zone')?.addEventListener('dragover', (e) => {
     e.preventDefault();
-    dropZone.classList.add('drag-over');
+    $('#pdf-drop-zone').classList.add('drag-over');
 });
 
-dropZone.addEventListener('dragleave', () => {
-    dropZone.classList.remove('drag-over');
+$('#pdf-drop-zone')?.addEventListener('dragleave', () => {
+    $('#pdf-drop-zone').classList.remove('drag-over');
 });
 
-dropZone.addEventListener('drop', (e) => {
+$('#pdf-drop-zone')?.addEventListener('drop', (e) => {
     e.preventDefault();
-    dropZone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    handleFile(file);
+    $('#pdf-drop-zone').classList.remove('drag-over');
+    handlePdfFile(e.dataTransfer.files[0]);
 });
 
-fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    handleFile(file);
+$('#pdf-file-input')?.addEventListener('change', (e) => {
+    handlePdfFile(e.target.files[0]);
 });
 
-btnRemoveFile.addEventListener('click', () => {
+$('#pdf-btn-remove-file')?.addEventListener('click', () => {
     pdfFile = null;
     pdfText = '';
     extractedData = null;
     generatedXml = '';
-    fileInfo.classList.add('hidden');
-    dropZone.style.display = '';
-    fileInput.value = '';
-    btnExtract.disabled = true;
-    btnGenerateXml.disabled = true;
-    btnDownload.disabled = true;
-    fileName.textContent = '';
+    $('#pdf-file-info').classList.add('hidden');
+    $('#pdf-drop-zone').style.display = '';
+    $('#pdf-file-input').value = '';
+    $('#pdf-btn-extract').disabled = true;
+    $('#pdf-btn-generate-xml').disabled = true;
+    $('#pdf-btn-download').disabled = true;
+    $('#pdf-file-name').textContent = '';
 });
 
 // ============================================================
-// Extraction Pipeline
+// PDF MODE - Extraction Pipeline
 // ============================================================
 
-btnExtract.addEventListener('click', async () => {
+$('#pdf-btn-extract')?.addEventListener('click', async () => {
     if (!pdfFile || !apiKey) return;
 
-    btnExtract.disabled = true;
-    extractionProgress.classList.remove('hidden');
-    setProgress(0, 'PDF wird gelesen...');
+    $('#pdf-btn-extract').disabled = true;
+    $('#pdf-extraction-progress').classList.remove('hidden');
+    setPdfProgress(0, 'Reading PDF...');
 
     try {
-        // Step 1: Extract text from PDF
         const pdfResult = await extractTextFromPdf(pdfFile, (pct) => {
-            setProgress(pct * 0.4, 'PDF wird gelesen...');
+            setPdfProgress(pct * 0.4, 'Reading PDF...');
         });
 
         pdfText = pdfResult.text;
         pdfMetadata = pdfResult.metadata;
-        setProgress(40, `${pdfResult.numPages} Seiten gelesen. Sende an Claude API...`);
+        setPdfProgress(40, `${pdfResult.numPages} pages read. Sending to Claude API...`);
 
-        // Step 2: Send to Claude API for structured extraction
         extractedData = await extractCalibrationData(apiKey, pdfText, pdfMetadata);
-        setProgress(90, 'Daten extrahiert. Vorschau wird erstellt...');
+        setPdfProgress(90, 'Data extracted. Building preview...');
 
-        // Step 3: Populate preview
         populatePreview(extractedData);
-        setProgress(100, 'Fertig! Bitte prüfe die extrahierten Daten.');
+        setPdfProgress(100, 'Done! Please review the extracted data.');
 
-        completeStep(stepExtract);
-        activateStep(stepPreview);
-        activateStep(stepDownload);
-        btnGenerateXml.disabled = false;
+        completeStep($('#pdf-step-extract'));
+        activateStep($('#pdf-step-preview'));
+        activateStep($('#pdf-step-download'));
+        $('#pdf-btn-generate-xml').disabled = false;
 
-        // Auto-generate XML preview
         updateXmlPreview();
 
     } catch (err) {
-        setProgress(0, `Fehler: ${err.message}`);
-        progressText.classList.add('error');
-        btnExtract.disabled = false;
+        setPdfProgress(0, `Error: ${err.message}`);
+        $('#pdf-progress-text').classList.add('error');
+        $('#pdf-btn-extract').disabled = false;
     }
 });
 
-function setProgress(pct, text) {
-    progressFill.style.width = `${pct}%`;
+function setPdfProgress(pct, text) {
+    $('#pdf-progress-fill').style.width = `${pct}%`;
     if (text) {
-        progressText.textContent = text;
-        progressText.className = 'progress-text';
+        $('#pdf-progress-text').textContent = text;
+        $('#pdf-progress-text').className = 'progress-text';
     }
 }
 
 // ============================================================
-// Preview Population
+// PDF MODE - Preview Population
 // ============================================================
 
 function populatePreview(data) {
-    // Admin fields
     setField('field-cert-id', data.coreData?.uniqueIdentifier);
+    setField('field-cal-mark', data.coreData?.calibrationMark);
+    setField('field-order-number', data.coreData?.orderNumber);
     setField('field-country', data.coreData?.countryCodeISO3166_1);
     setField('field-begin-date', data.coreData?.beginPerformanceDate);
     setField('field-end-date', data.coreData?.endPerformanceDate);
+    if (data.coreData?.performanceLocation) {
+        const sel = $('#field-perf-location');
+        if (sel) sel.value = data.coreData.performanceLocation;
+    }
+
     setField('field-lab-name', data.calibrationLaboratory?.name);
+    setField('field-lab-code', data.calibrationLaboratory?.calibrationLaboratoryCode);
     setField('field-lab-street', data.calibrationLaboratory?.street);
     setField('field-lab-zip', data.calibrationLaboratory?.postCode);
     setField('field-lab-city', data.calibrationLaboratory?.city);
+    setField('field-lab-phone', data.calibrationLaboratory?.phone);
+    setField('field-lab-fax', data.calibrationLaboratory?.fax);
+    setField('field-lab-email', data.calibrationLaboratory?.eMail);
+    setField('field-lab-website', data.calibrationLaboratory?.website);
+
     setField('field-customer-name', data.customer?.name);
     setField('field-customer-street', data.customer?.street);
     setField('field-customer-zip', data.customer?.postCode);
     setField('field-customer-city', data.customer?.city);
-    setField('field-resp-person', data.respPersons?.[0]?.name);
+    setField('field-customer-contact', data.customer?.contactPerson);
 
-    // Items
+    populateRespPersons(data.respPersons || []);
+
     const item = data.items?.[0] || {};
     setField('field-item-name', item.name);
     setField('field-item-manufacturer', item.manufacturer);
     setField('field-item-model', item.model);
     setField('field-item-serial', item.serialNumber);
     setField('field-item-id', item.inventoryNumber);
+    setField('field-item-equip-nr', item.equipmentNumber);
+    setField('field-item-test-equip-nr', item.testEquipmentNumber);
+    setField('field-item-tag-nr', item.tagNumber);
+    setField('field-item-parameter', item.parameter);
+    setField('field-item-range', item.measuringRange);
+    setField('field-item-signal', item.signalOutput);
+    setField('field-item-cal-range', item.calibrationRange);
+    setField('field-item-medium', item.medium);
+    setField('field-item-description', item.description);
 
-    // Measurement results
+    populateAccessories(data.accessories || []);
+    populateEquipments(data.measuringEquipments || []);
+    populateSOPs(data.calibrationSOPs || []);
     populateResults(data.measurementResults || []);
+    populateStatements(data.statements || []);
+
+    setField('field-remarks', data.remarks);
 }
 
 function setField(id, value) {
@@ -236,148 +263,293 @@ function setField(id, value) {
     if (el && value) el.value = value;
 }
 
-function populateResults(measurementResults) {
-    resultsContainer.innerHTML = '';
+// ============================================================
+// PDF MODE - Dynamic Tables
+// ============================================================
 
+function populateRespPersons(persons) {
+    const container = $('#resp-persons-container');
+    container.innerHTML = '';
+    if (persons.length === 0) {
+        container.innerHTML = '<p class="placeholder-text">No responsible persons found.</p>';
+        return;
+    }
+    const table = createTable(['Name', 'Role', 'Main Signer']);
+    const tbody = table.querySelector('tbody');
+    for (const p of persons) {
+        appendRow(tbody, [p.name || '', p.role || '', p.isMainSigner ? 'Yes' : '']);
+    }
+    container.appendChild(table);
+}
+
+function populateAccessories(accessories) {
+    const container = $('#accessories-container');
+    container.innerHTML = '';
+    if (accessories.length === 0) {
+        container.innerHTML = '<p class="placeholder-text">No accessories found.</p>';
+        return;
+    }
+    const table = createTable(['Type', 'Description', 'Serial Number']);
+    const tbody = table.querySelector('tbody');
+    for (const a of accessories) {
+        appendRow(tbody, [a.type || '', a.description || '', a.serialNumber || '']);
+    }
+    container.appendChild(table);
+}
+
+function populateEquipments(equipments) {
+    const container = $('#equipment-container');
+    container.innerHTML = '';
+    if (equipments.length === 0) {
+        container.innerHTML = '<p class="placeholder-text">No measuring equipment found.</p>';
+        return;
+    }
+    const table = createTable(['Name', 'Eq. No.', 'Certificate No.', 'Traceability', 'Cal. Date', 'Next Cal.']);
+    const tbody = table.querySelector('tbody');
+    for (const eq of equipments) {
+        appendRow(tbody, [
+            eq.name || '',
+            eq.equipmentNumber || eq.serialNumber || '',
+            eq.certificateNumber || '',
+            eq.traceability || '',
+            eq.calibrationDate || '',
+            eq.nextCalibrationDate || '',
+        ]);
+    }
+    container.appendChild(table);
+}
+
+function populateSOPs(sops) {
+    const container = $('#sops-container');
+    container.innerHTML = '';
+    if (sops.length === 0) {
+        container.innerHTML = '<p class="placeholder-text">No SOPs found.</p>';
+        return;
+    }
+    const table = createTable(['SOP No.', 'Description']);
+    const tbody = table.querySelector('tbody');
+    for (const s of sops) {
+        appendRow(tbody, [s.sopNumber || '', s.description || '']);
+    }
+    container.appendChild(table);
+}
+
+function populateResults(measurementResults) {
+    const container = $('#results-container');
+    container.innerHTML = '';
     if (measurementResults.length === 0) {
-        resultsContainer.innerHTML = '<p class="placeholder-text">Keine Messergebnisse gefunden.</p>';
+        container.innerHTML = '<p class="placeholder-text">No measurement results found.</p>';
         return;
     }
 
     for (const mr of measurementResults) {
         const section = document.createElement('div');
+        section.className = 'result-section';
 
         const title = document.createElement('h3');
         title.className = 'result-section-title';
-        title.textContent = mr.name || 'Messergebnis';
+        let titleText = mr.name || 'Measurement Result';
+        if (mr.category) {
+            const labels = { asFound: 'As Found', asLeft: 'As Left', corrected: 'Corrected' };
+            titleText += ` (${labels[mr.category] || mr.category})`;
+        }
+        title.textContent = titleText;
         section.appendChild(title);
 
         if (mr.description) {
             const desc = document.createElement('p');
+            desc.className = 'text-muted text-small';
             desc.textContent = mr.description;
-            desc.style.marginBottom = '0.5rem';
-            desc.style.fontSize = '0.85rem';
-            desc.style.color = '#64748b';
             section.appendChild(desc);
         }
 
-        // Influence conditions
-        const conditions = mr.influenceConditions || [];
-        if (conditions.length > 0) {
-            const condTitle = document.createElement('p');
-            condTitle.style.fontWeight = '600';
-            condTitle.style.fontSize = '0.85rem';
-            condTitle.style.marginTop = '0.5rem';
-            condTitle.textContent = 'Umgebungsbedingungen:';
-            section.appendChild(condTitle);
-
-            const condList = document.createElement('ul');
-            condList.style.fontSize = '0.85rem';
-            condList.style.marginLeft = '1rem';
-            condList.style.marginBottom = '0.5rem';
-            for (const c of conditions) {
-                const li = document.createElement('li');
-                li.textContent = `${c.name}: ${c.value ?? '?'} ${c.unit || ''}`;
-                condList.appendChild(li);
-            }
-            section.appendChild(condList);
+        if (mr.calibrationProcedure) {
+            const proc = document.createElement('details');
+            proc.className = 'details-block';
+            const summary = document.createElement('summary');
+            summary.textContent = 'Calibration Procedure';
+            proc.appendChild(summary);
+            const procText = document.createElement('p');
+            procText.className = 'text-muted text-small';
+            procText.textContent = mr.calibrationProcedure;
+            proc.appendChild(procText);
+            section.appendChild(proc);
         }
 
-        // Results table
+        if (mr.method || (mr.usedMethods && mr.usedMethods.length > 0)) {
+            const parts = [];
+            if (mr.method) parts.push(mr.method);
+            if (mr.usedMethods) {
+                for (const m of mr.usedMethods) {
+                    parts.push(`${m.name}${m.description ? ': ' + m.description : ''}`);
+                }
+            }
+            const meth = document.createElement('p');
+            meth.className = 'text-muted text-small';
+            meth.innerHTML = `<strong>Method:</strong> ${escapeHtml(parts.join('; '))}`;
+            section.appendChild(meth);
+        }
+
+        const conditions = mr.influenceConditions || [];
+        if (conditions.length > 0) {
+            const condBlock = document.createElement('details');
+            condBlock.className = 'details-block';
+            const condSummary = document.createElement('summary');
+            condSummary.textContent = `Influence Conditions (${conditions.length})`;
+            condBlock.appendChild(condSummary);
+            const condList = document.createElement('ul');
+            condList.className = 'text-small';
+            for (const c of conditions) {
+                const li = document.createElement('li');
+                if (c.min != null && c.max != null) {
+                    li.textContent = `${c.name}: ${c.min}...${c.max} ${c.unit || ''}`;
+                } else {
+                    li.textContent = `${c.name}: ${c.value ?? '?'} ${c.unit || ''}`;
+                }
+                if (c.uncertainty) li.textContent += ` (U: ${c.uncertainty})`;
+                condList.appendChild(li);
+            }
+            condBlock.appendChild(condList);
+            section.appendChild(condBlock);
+        }
+
+        if (mr.decisionRule) {
+            const drp = document.createElement('p');
+            drp.className = 'text-muted text-small';
+            drp.innerHTML = `<strong>Decision Rule:</strong> ${escapeHtml(mr.decisionRule)}`;
+            section.appendChild(drp);
+        }
+
         const results = mr.results || [];
         if (results.length > 0) {
-            const table = document.createElement('table');
-            table.className = 'results-table';
+            const hasSetPoint = results.some(r => r.setPoint != null);
+            const hasDeviation = results.some(r => r.deviation != null);
+            const hasAllowedDev = results.some(r => r.allowedDeviation != null || r.mpe != null);
+            const hasConformity = results.some(r => r.conformity);
 
-            const thead = document.createElement('thead');
-            const headerRow = document.createElement('tr');
-            const headers = ['Messpunkt', 'Nennwert', 'Messwert', 'Unsicherheit (U)', 'k'];
-            for (const h of headers) {
-                const th = document.createElement('th');
-                th.textContent = h;
-                headerRow.appendChild(th);
-            }
-            thead.appendChild(headerRow);
-            table.appendChild(thead);
+            const headers = ['Point'];
+            if (hasSetPoint) headers.push('Set Point');
+            headers.push('Reference', 'Measured');
+            if (hasDeviation) headers.push('Deviation');
+            if (hasAllowedDev) headers.push('Allowed Dev. / MPE');
+            headers.push('U (k)');
+            if (hasConformity) headers.push('Conformity');
 
-            const tbody = document.createElement('tbody');
+            const table = createTable(headers);
+            const tbody = table.querySelector('tbody');
+
             for (let i = 0; i < results.length; i++) {
                 const r = results[i];
+                const fields = [r.name || `Point ${i + 1}`];
+                if (hasSetPoint) fields.push(formatValue(r.setPoint, r.setPointUnit));
+                fields.push(
+                    formatValue(r.nominalValue ?? r.referenceValue, r.nominalUnit || r.referenceUnit),
+                    formatValue(r.measuredValue, r.measuredUnit)
+                );
+                if (hasDeviation) fields.push(formatValue(r.deviation, r.deviationUnit));
+                if (hasAllowedDev) fields.push(formatValue(r.allowedDeviation ?? r.mpe, r.allowedDeviationUnit || r.mpeUnit));
+                fields.push(r.uncertainty != null ? `${r.uncertainty} (k=${r.coverageFactor ?? '?'})` : '');
+                if (hasConformity) fields.push(r.conformity || '');
+
                 const tr = document.createElement('tr');
-
-                const fields = [
-                    { val: r.name || `Punkt ${i + 1}`, key: 'name' },
-                    { val: formatValue(r.nominalValue, r.nominalUnit), key: 'nominalValue' },
-                    { val: formatValue(r.measuredValue, r.measuredUnit), key: 'measuredValue' },
-                    { val: formatValue(r.uncertainty, r.uncertaintyUnit || r.measuredUnit), key: 'uncertainty' },
-                    { val: r.coverageFactor ?? '', key: 'coverageFactor' },
-                ];
-
-                for (const f of fields) {
+                for (const val of fields) {
                     const td = document.createElement('td');
-                    const input = document.createElement('input');
-                    input.type = 'text';
-                    input.value = f.val;
-                    input.dataset.resultIndex = i;
-                    input.dataset.key = f.key;
-                    input.addEventListener('change', onResultFieldChange);
-                    td.appendChild(input);
+                    td.textContent = val;
+                    if (val === 'pass') td.className = 'text-pass';
+                    if (val === 'fail') td.className = 'text-fail';
                     tr.appendChild(td);
                 }
-
                 tbody.appendChild(tr);
             }
-            table.appendChild(tbody);
             section.appendChild(table);
         }
 
-        resultsContainer.appendChild(section);
+        container.appendChild(section);
     }
 }
 
-function formatValue(value, unit) {
-    if (value == null) return '';
-    return unit ? `${value} ${unit}` : `${value}`;
-}
+function populateStatements(statements) {
+    const container = $('#statements-container');
+    container.innerHTML = '';
+    if (statements.length === 0) {
+        container.innerHTML = '<p class="placeholder-text">No conformity statements found.</p>';
+        return;
+    }
 
-function onResultFieldChange() {
-    // When user edits results, we'd need to update extractedData accordingly
-    // For now, we just mark that the XML needs to be regenerated
-    btnGenerateXml.disabled = false;
-    btnDownload.disabled = true;
+    for (const stmt of statements) {
+        const div = document.createElement('div');
+        div.className = 'statement-item';
+
+        if (stmt.name) {
+            const nameEl = document.createElement('p');
+            nameEl.className = 'statement-name';
+            nameEl.textContent = stmt.name;
+            div.appendChild(nameEl);
+        }
+
+        if (stmt.conformity) {
+            const badge = document.createElement('span');
+            badge.className = `badge ${stmt.conformity === 'pass' ? 'badge-success' : 'badge-danger'}`;
+            badge.textContent = stmt.conformity.toUpperCase();
+            div.appendChild(badge);
+        }
+
+        if (stmt.description) {
+            const descEl = document.createElement('p');
+            descEl.className = 'text-muted text-small';
+            descEl.textContent = stmt.description;
+            div.appendChild(descEl);
+        }
+
+        const details = [];
+        if (stmt.decisionRule) details.push(`Decision Rule: ${stmt.decisionRule}`);
+        if (stmt.conformityProbability) details.push(`Probability: ${stmt.conformityProbability}`);
+        if (stmt.norm) details.push(`Norm: ${stmt.norm}`);
+        if (details.length > 0) {
+            const detailEl = document.createElement('p');
+            detailEl.className = 'text-muted text-xsmall';
+            detailEl.textContent = details.join(' | ');
+            div.appendChild(detailEl);
+        }
+
+        container.appendChild(div);
+    }
 }
 
 // ============================================================
-// Form -> Data Sync
+// PDF MODE - Form Sync & XML Generation
 // ============================================================
 
 function syncFormToData() {
     if (!extractedData) return;
 
-    // Sync admin fields back
     if (!extractedData.coreData) extractedData.coreData = {};
     extractedData.coreData.uniqueIdentifier = $('#field-cert-id')?.value || extractedData.coreData.uniqueIdentifier;
+    extractedData.coreData.calibrationMark = $('#field-cal-mark')?.value || extractedData.coreData.calibrationMark;
+    extractedData.coreData.orderNumber = $('#field-order-number')?.value || extractedData.coreData.orderNumber;
     extractedData.coreData.countryCodeISO3166_1 = $('#field-country')?.value || extractedData.coreData.countryCodeISO3166_1;
     extractedData.coreData.beginPerformanceDate = $('#field-begin-date')?.value || extractedData.coreData.beginPerformanceDate;
     extractedData.coreData.endPerformanceDate = $('#field-end-date')?.value || extractedData.coreData.endPerformanceDate;
+    extractedData.coreData.performanceLocation = $('#field-perf-location')?.value || extractedData.coreData.performanceLocation;
 
     if (!extractedData.calibrationLaboratory) extractedData.calibrationLaboratory = {};
     extractedData.calibrationLaboratory.name = $('#field-lab-name')?.value || extractedData.calibrationLaboratory.name;
+    extractedData.calibrationLaboratory.calibrationLaboratoryCode = $('#field-lab-code')?.value || extractedData.calibrationLaboratory.calibrationLaboratoryCode;
     extractedData.calibrationLaboratory.street = $('#field-lab-street')?.value || extractedData.calibrationLaboratory.street;
     extractedData.calibrationLaboratory.postCode = $('#field-lab-zip')?.value || extractedData.calibrationLaboratory.postCode;
     extractedData.calibrationLaboratory.city = $('#field-lab-city')?.value || extractedData.calibrationLaboratory.city;
+    extractedData.calibrationLaboratory.phone = $('#field-lab-phone')?.value || extractedData.calibrationLaboratory.phone;
+    extractedData.calibrationLaboratory.fax = $('#field-lab-fax')?.value || extractedData.calibrationLaboratory.fax;
+    extractedData.calibrationLaboratory.eMail = $('#field-lab-email')?.value || extractedData.calibrationLaboratory.eMail;
+    extractedData.calibrationLaboratory.website = $('#field-lab-website')?.value || extractedData.calibrationLaboratory.website;
 
     if (!extractedData.customer) extractedData.customer = {};
     extractedData.customer.name = $('#field-customer-name')?.value || extractedData.customer.name;
     extractedData.customer.street = $('#field-customer-street')?.value || extractedData.customer.street;
     extractedData.customer.postCode = $('#field-customer-zip')?.value || extractedData.customer.postCode;
     extractedData.customer.city = $('#field-customer-city')?.value || extractedData.customer.city;
+    extractedData.customer.contactPerson = $('#field-customer-contact')?.value || extractedData.customer.contactPerson;
 
-    if (!extractedData.respPersons) extractedData.respPersons = [{}];
-    if (extractedData.respPersons.length === 0) extractedData.respPersons.push({});
-    extractedData.respPersons[0].name = $('#field-resp-person')?.value || extractedData.respPersons[0].name;
-
-    // Items
     if (!extractedData.items) extractedData.items = [{}];
     if (extractedData.items.length === 0) extractedData.items.push({});
     extractedData.items[0].name = $('#field-item-name')?.value || extractedData.items[0].name;
@@ -385,91 +557,513 @@ function syncFormToData() {
     extractedData.items[0].model = $('#field-item-model')?.value || extractedData.items[0].model;
     extractedData.items[0].serialNumber = $('#field-item-serial')?.value || extractedData.items[0].serialNumber;
     extractedData.items[0].inventoryNumber = $('#field-item-id')?.value || extractedData.items[0].inventoryNumber;
+    extractedData.items[0].equipmentNumber = $('#field-item-equip-nr')?.value || extractedData.items[0].equipmentNumber;
+    extractedData.items[0].testEquipmentNumber = $('#field-item-test-equip-nr')?.value || extractedData.items[0].testEquipmentNumber;
+    extractedData.items[0].tagNumber = $('#field-item-tag-nr')?.value || extractedData.items[0].tagNumber;
+    extractedData.items[0].parameter = $('#field-item-parameter')?.value || extractedData.items[0].parameter;
+    extractedData.items[0].measuringRange = $('#field-item-range')?.value || extractedData.items[0].measuringRange;
+    extractedData.items[0].signalOutput = $('#field-item-signal')?.value || extractedData.items[0].signalOutput;
+    extractedData.items[0].calibrationRange = $('#field-item-cal-range')?.value || extractedData.items[0].calibrationRange;
+    extractedData.items[0].medium = $('#field-item-medium')?.value || extractedData.items[0].medium;
+    extractedData.items[0].description = $('#field-item-description')?.value || extractedData.items[0].description;
+
+    const remarksVal = $('#field-remarks')?.value;
+    if (remarksVal) extractedData.remarks = remarksVal;
 }
 
-// ============================================================
-// XML Generation & Download
-// ============================================================
-
-btnGenerateXml.addEventListener('click', () => {
+$('#pdf-btn-generate-xml')?.addEventListener('click', () => {
     syncFormToData();
     updateXmlPreview();
 
     const dataWarnings = validateData(extractedData);
     if (dataWarnings.length > 0) {
-        showValidationMessages(dataWarnings, 'warnings');
+        showValidationMessages($('#pdf-validation-messages'), dataWarnings, 'warnings');
     } else {
-        validationMessages.classList.add('hidden');
+        $('#pdf-validation-messages').classList.add('hidden');
     }
-
-    btnDownload.disabled = false;
+    $('#pdf-btn-download').disabled = false;
 });
 
 function updateXmlPreview() {
     if (!extractedData) return;
     syncFormToData();
-    const { xml, warnings } = generateDccXml(extractedData);
+    const { xml } = generateDccXml(extractedData);
     generatedXml = xml;
-    xmlPreview.textContent = xml;
+    const codeEl = $('#xml-preview code');
+    if (codeEl) codeEl.textContent = xml;
 }
 
-btnDownload.addEventListener('click', () => {
+$('#pdf-btn-download')?.addEventListener('click', () => {
     if (!generatedXml) return;
-
-    const certId = extractedData?.coreData?.uniqueIdentifier || 'dcc-export';
-    const safeId = certId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const blob = new Blob([generatedXml], { type: 'application/xml' });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${safeId}.xml`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadFile(generatedXml, 'application/xml',
+        (extractedData?.coreData?.uniqueIdentifier || 'dcc-export').replace(/[^a-zA-Z0-9_-]/g, '_') + '.xml'
+    );
 });
 
-function showValidationMessages(messages, type) {
-    validationMessages.innerHTML = '';
-    validationMessages.className = `validation-messages ${type}`;
-    validationMessages.classList.remove('hidden');
+// ============================================================
+// XML CONVERT MODE - Profile Selection
+// ============================================================
 
-    const title = document.createElement('strong');
-    title.textContent = type === 'warnings' ? 'Hinweise:' : 'Fehler:';
-    validationMessages.appendChild(title);
+function refreshXmlProfileSelect() {
+    const select = $('#xml-profile-select');
+    if (!select) return;
+    const profiles = getAllProfiles();
 
-    const ul = document.createElement('ul');
-    for (const msg of messages) {
-        const li = document.createElement('li');
-        li.textContent = msg;
-        ul.appendChild(li);
+    select.innerHTML = '';
+    if (profiles.length === 0) {
+        select.innerHTML = '<option value="">-- No profiles saved --</option>';
+    } else {
+        select.innerHTML = '<option value="">-- Select a profile --</option>';
+        for (const p of profiles) {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.name || p.id;
+            select.appendChild(opt);
+        }
     }
-    validationMessages.appendChild(ul);
+
+    // Restore selection if possible
+    if (selectedProfileId) {
+        select.value = selectedProfileId;
+    }
+
+    updateXmlProfileInfo();
+}
+
+function updateXmlProfileInfo() {
+    const select = $('#xml-profile-select');
+    const id = select?.value;
+    const info = $('#xml-profile-info');
+
+    if (!id) {
+        info?.classList.add('hidden');
+        selectedProfileId = '';
+        updateXmlConvertButton();
+        return;
+    }
+
+    const profile = getProfile(id);
+    if (!profile) {
+        info?.classList.add('hidden');
+        selectedProfileId = '';
+        updateXmlConvertButton();
+        return;
+    }
+
+    selectedProfileId = id;
+    info?.classList.remove('hidden');
+    $('#xml-profile-name').textContent = profile.name || profile.id;
+    $('#xml-profile-desc').textContent = profile.description || '';
+    $('#xml-profile-ns').textContent = profile.schemaNamespace || 'N/A';
+    $('#xml-profile-count').textContent = profile.mappings?.length || 0;
+
+    activateStep($('#xml-step-upload'));
+    updateXmlConvertButton();
+}
+
+$('#xml-profile-select')?.addEventListener('change', updateXmlProfileInfo);
+
+$('#xml-btn-import-profile')?.addEventListener('click', () => {
+    $('#xml-import-profile-input').click();
+});
+
+$('#xml-import-profile-input')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+        const imported = await importProfile(file);
+        refreshXmlProfileSelect();
+        $('#xml-profile-select').value = imported.id;
+        updateXmlProfileInfo();
+    } catch (err) {
+        alert('Import failed: ' + err.message);
+    }
+    e.target.value = '';
+});
+
+$('#xml-btn-export-profile')?.addEventListener('click', () => {
+    if (!selectedProfileId) return;
+    const profile = getProfile(selectedProfileId);
+    if (profile) exportProfile(profile);
+});
+
+$('#xml-btn-delete-profile')?.addEventListener('click', () => {
+    if (!selectedProfileId) return;
+    if (!confirm('Delete this mapping profile?')) return;
+    deleteProfile(selectedProfileId);
+    selectedProfileId = '';
+    refreshXmlProfileSelect();
+});
+
+// ============================================================
+// XML CONVERT MODE - File Upload
+// ============================================================
+
+function handleXmlFile(file) {
+    if (!file) return;
+    xmlFile = file;
+    $('#xml-file-name').textContent = file.name;
+    $('#xml-file-info').classList.remove('hidden');
+    $('#xml-drop-zone').style.display = 'none';
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        xmlContent = e.target.result;
+
+        // Try auto-detection
+        const detected = detectProfileForXml(xmlContent);
+        if (detected) {
+            $('#xml-auto-detect').classList.remove('hidden');
+            $('#xml-auto-detect-name').textContent = detected.name || detected.id;
+            selectedProfileId = detected.id;
+            $('#xml-profile-select').value = detected.id;
+            updateXmlProfileInfo();
+        }
+
+        activateStep($('#xml-step-convert'));
+        updateXmlConvertButton();
+    };
+    reader.readAsText(file);
+}
+
+$('#xml-drop-zone')?.addEventListener('click', () => $('#xml-file-input').click());
+
+$('#xml-drop-zone')?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    $('#xml-drop-zone').classList.add('drag-over');
+});
+
+$('#xml-drop-zone')?.addEventListener('dragleave', () => {
+    $('#xml-drop-zone').classList.remove('drag-over');
+});
+
+$('#xml-drop-zone')?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    $('#xml-drop-zone').classList.remove('drag-over');
+    handleXmlFile(e.dataTransfer.files[0]);
+});
+
+$('#xml-file-input')?.addEventListener('change', (e) => {
+    handleXmlFile(e.target.files[0]);
+});
+
+$('#xml-btn-remove-file')?.addEventListener('click', () => {
+    xmlFile = null;
+    xmlContent = '';
+    xmlConvertedData = null;
+    xmlGeneratedDcc = '';
+    $('#xml-file-info').classList.add('hidden');
+    $('#xml-drop-zone').style.display = '';
+    $('#xml-file-input').value = '';
+    $('#xml-auto-detect').classList.add('hidden');
+    $('#xml-btn-convert').disabled = true;
+    $('#xml-btn-download').disabled = true;
+    $('#xml-file-name').textContent = '';
+});
+
+function updateXmlConvertButton() {
+    const btn = $('#xml-btn-convert');
+    if (btn) btn.disabled = !(xmlContent && selectedProfileId);
 }
 
 // ============================================================
-// Tab Switching
+// XML CONVERT MODE - Conversion
 // ============================================================
 
-for (const tab of $$('.tab')) {
-    tab.addEventListener('click', () => {
-        const tabId = tab.dataset.tab;
+$('#xml-btn-convert')?.addEventListener('click', () => {
+    if (!xmlContent || !selectedProfileId) return;
 
-        // Update active tab button
-        for (const t of $$('.tab')) t.classList.remove('active');
-        tab.classList.add('active');
+    const profile = getProfile(selectedProfileId);
+    if (!profile) {
+        showStatus('#xml-conversion-status', 'Profile not found.', 'error');
+        return;
+    }
 
-        // Update active tab content
-        for (const tc of $$('.tab-content')) tc.classList.remove('active');
-        document.getElementById(tabId)?.classList.add('active');
+    try {
+        xmlConvertedData = convertXmlToDccJson(xmlContent, profile);
 
-        // Refresh XML preview when switching to that tab
-        if (tabId === 'tab-xml' && extractedData) {
-            updateXmlPreview();
-        }
+        // Show JSON preview
+        const jsonCode = $('#xml-json-preview code');
+        if (jsonCode) jsonCode.textContent = JSON.stringify(xmlConvertedData, null, 2);
+
+        // Generate DCC XML
+        const { xml } = generateDccXml(xmlConvertedData);
+        xmlGeneratedDcc = xml;
+        const dccCode = $('#xml-dcc-preview code');
+        if (dccCode) dccCode.textContent = xml;
+
+        showStatus('#xml-conversion-status', `Conversion successful! ${profile.mappings.length} mapping rules applied.`, 'success');
+        completeStep($('#xml-step-convert'));
+        activateStep($('#xml-step-preview'));
+        $('#xml-btn-download').disabled = false;
+
+    } catch (err) {
+        showStatus('#xml-conversion-status', `Conversion error: ${err.message}`, 'error');
+    }
+});
+
+$('#xml-btn-download')?.addEventListener('click', () => {
+    if (!xmlGeneratedDcc) return;
+    const certId = xmlConvertedData?.coreData?.uniqueIdentifier || 'dcc-export';
+    downloadFile(xmlGeneratedDcc, 'application/xml', certId.replace(/[^a-zA-Z0-9_-]/g, '_') + '.xml');
+});
+
+// ============================================================
+// TRAIN MODE - API Key
+// ============================================================
+
+$('#train-btn-save-key')?.addEventListener('click', () => {
+    const key = $('#train-api-key-input').value.trim();
+    if (!validateApiKey(key)) {
+        $('#train-api-key-status').textContent = 'Invalid API key. Must start with "sk-ant-".';
+        $('#train-api-key-status').className = 'status-text error';
+        return;
+    }
+    apiKey = key;
+    $('#train-api-key-status').textContent = 'API key saved (session only).';
+    $('#train-api-key-status').className = 'status-text success';
+    completeStep($('#train-step-apikey'));
+    activateStep($('#train-step-upload'));
+});
+
+$('#train-api-key-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('#train-btn-save-key').click();
+});
+
+// ============================================================
+// TRAIN MODE - File Uploads
+// ============================================================
+
+function setupTrainDropZone(dropId, inputId, infoId, nameId, removeClass, onLoad) {
+    const drop = $(dropId);
+    const input = $(inputId);
+    const info = $(infoId);
+    const nameEl = $(nameId);
+
+    drop?.addEventListener('click', () => input?.click());
+
+    drop?.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        drop.classList.add('drag-over');
+    });
+
+    drop?.addEventListener('dragleave', () => {
+        drop.classList.remove('drag-over');
+    });
+
+    drop?.addEventListener('drop', (e) => {
+        e.preventDefault();
+        drop.classList.remove('drag-over');
+        loadTrainFile(e.dataTransfer.files[0], drop, info, nameEl, onLoad);
+    });
+
+    input?.addEventListener('change', (e) => {
+        loadTrainFile(e.target.files[0], drop, info, nameEl, onLoad);
+    });
+
+    const removeBtn = $(`.${removeClass}`);
+    removeBtn?.addEventListener('click', () => {
+        onLoad(null, '');
+        info?.classList.add('hidden');
+        drop.style.display = '';
+        if (input) input.value = '';
+        updateTrainButton();
     });
 }
+
+function loadTrainFile(file, drop, info, nameEl, onLoad) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        onLoad(file, e.target.result);
+        nameEl.textContent = file.name;
+        info?.classList.remove('hidden');
+        drop.style.display = 'none';
+        updateTrainButton();
+    };
+    reader.readAsText(file);
+}
+
+setupTrainDropZone('#train-xsd-drop', '#train-xsd-input', '#train-xsd-info', '#train-xsd-name', 'train-btn-remove-xsd',
+    (file, content) => { trainXsdFile = file; trainXsdContent = content; }
+);
+
+setupTrainDropZone('#train-xml-drop', '#train-xml-input', '#train-xml-info', '#train-xml-name', 'train-btn-remove-xml',
+    (file, content) => { trainXmlFile = file; trainXmlContent = content; }
+);
+
+function updateTrainButton() {
+    const btn = $('#train-btn-train');
+    const name = $('#train-profile-name')?.value?.trim();
+    if (btn) btn.disabled = !(trainXsdContent && trainXmlContent && name && apiKey);
+    if (trainXsdContent && trainXmlContent) {
+        activateStep($('#train-step-train'));
+    }
+}
+
+$('#train-profile-name')?.addEventListener('input', updateTrainButton);
+
+// ============================================================
+// TRAIN MODE - Training
+// ============================================================
+
+$('#train-btn-train')?.addEventListener('click', async () => {
+    if (!trainXsdContent || !trainXmlContent || !apiKey) return;
+
+    const profileName = $('#train-profile-name').value.trim() || 'Unnamed Profile';
+
+    $('#train-btn-train').disabled = true;
+    $('#train-progress').classList.remove('hidden');
+    setTrainProgress(20, 'Sending schema and sample to Claude API...');
+
+    try {
+        setTrainProgress(40, 'Claude is analyzing the schema...');
+
+        trainedProfile = await trainMappingProfile(apiKey, trainXsdContent, trainXmlContent, profileName);
+
+        setTrainProgress(100, 'Mapping profile generated successfully!');
+
+        // Show summary
+        $('#train-profile-summary').classList.remove('hidden');
+        $('#train-result-name').textContent = trainedProfile.name || profileName;
+        $('#train-result-ns').textContent = trainedProfile.schemaNamespace || 'N/A';
+        $('#train-result-root').textContent = trainedProfile.rootElement || 'N/A';
+        $('#train-result-count').textContent = trainedProfile.mappings?.length || 0;
+
+        // Show JSON preview
+        const previewCode = $('#train-profile-preview code');
+        if (previewCode) previewCode.textContent = JSON.stringify(trainedProfile, null, 2);
+
+        completeStep($('#train-step-train'));
+        activateStep($('#train-step-review'));
+        $('#train-btn-save').disabled = false;
+        $('#train-btn-export').disabled = false;
+
+    } catch (err) {
+        setTrainProgress(0, `Error: ${err.message}`);
+        $('#train-progress-text').classList.add('error');
+        $('#train-btn-train').disabled = false;
+    }
+});
+
+function setTrainProgress(pct, text) {
+    $('#train-progress-fill').style.width = `${pct}%`;
+    if (text) {
+        $('#train-progress-text').textContent = text;
+        $('#train-progress-text').className = 'progress-text';
+    }
+}
+
+// ============================================================
+// TRAIN MODE - Save & Export
+// ============================================================
+
+$('#train-btn-save')?.addEventListener('click', () => {
+    if (!trainedProfile) return;
+
+    const saved = saveProfile(trainedProfile);
+    trainedProfile = saved;
+
+    $('#train-save-status').textContent = `Profile "${saved.name}" saved successfully!`;
+    $('#train-save-status').className = 'status-text success';
+
+    refreshTrainProfilesList();
+});
+
+$('#train-btn-export')?.addEventListener('click', () => {
+    if (!trainedProfile) return;
+    exportProfile(trainedProfile);
+});
+
+function refreshTrainProfilesList() {
+    const container = $('#train-profiles-list');
+    if (!container) return;
+
+    const profiles = getAllProfiles();
+    container.innerHTML = '';
+
+    if (profiles.length === 0) {
+        container.innerHTML = '<p class="placeholder-text">No mapping profiles saved yet.</p>';
+        return;
+    }
+
+    const table = createTable(['Name', 'Namespace', 'Mappings', 'Created', 'Actions']);
+    const tbody = table.querySelector('tbody');
+
+    for (const p of profiles) {
+        const tr = document.createElement('tr');
+
+        const tdName = document.createElement('td');
+        tdName.textContent = p.name || p.id;
+        tdName.style.fontWeight = '500';
+        tr.appendChild(tdName);
+
+        const tdNs = document.createElement('td');
+        tdNs.textContent = p.schemaNamespace ? truncate(p.schemaNamespace, 30) : 'N/A';
+        tdNs.style.fontSize = '0.8rem';
+        tr.appendChild(tdNs);
+
+        const tdCount = document.createElement('td');
+        tdCount.textContent = p.mappings?.length || 0;
+        tr.appendChild(tdCount);
+
+        const tdDate = document.createElement('td');
+        tdDate.textContent = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '';
+        tdDate.style.fontSize = '0.8rem';
+        tr.appendChild(tdDate);
+
+        const tdActions = document.createElement('td');
+        const btnExport = document.createElement('button');
+        btnExport.className = 'btn btn-small';
+        btnExport.textContent = 'Export';
+        btnExport.addEventListener('click', () => exportProfile(p));
+        tdActions.appendChild(btnExport);
+
+        const btnDel = document.createElement('button');
+        btnDel.className = 'btn btn-small btn-danger-text';
+        btnDel.textContent = 'Delete';
+        btnDel.style.marginLeft = '0.25rem';
+        btnDel.addEventListener('click', () => {
+            if (!confirm(`Delete profile "${p.name}"?`)) return;
+            deleteProfile(p.id);
+            refreshTrainProfilesList();
+        });
+        tdActions.appendChild(btnDel);
+
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+    }
+
+    container.appendChild(table);
+}
+
+// ============================================================
+// Tab Switching (works for all modes)
+// ============================================================
+
+document.addEventListener('click', (e) => {
+    const tab = e.target.closest('.tab');
+    if (!tab) return;
+
+    const tabId = tab.dataset.tab;
+    if (!tabId) return;
+
+    const tabsContainer = tab.closest('.tabs');
+    const contentParent = tabsContainer?.parentElement;
+    if (!tabsContainer || !contentParent) return;
+
+    // Update active tab button within this tab group
+    for (const t of tabsContainer.querySelectorAll('.tab')) t.classList.remove('active');
+    tab.classList.add('active');
+
+    // Update active tab content within this parent
+    for (const tc of contentParent.querySelectorAll(':scope > .tab-content')) tc.classList.remove('active');
+    const target = document.getElementById(tabId);
+    if (target) target.classList.add('active');
+
+    // Auto-refresh XML preview
+    if (tabId === 'pdf-tab-xml' && extractedData) updateXmlPreview();
+});
 
 // ============================================================
 // Step Header Toggle
@@ -483,3 +1077,104 @@ for (const header of $$('.step-header')) {
         }
     });
 }
+
+// ============================================================
+// Utility Functions
+// ============================================================
+
+function activateStep(step) {
+    if (step) step.classList.add('active');
+}
+
+function completeStep(step) {
+    if (step) step.classList.add('completed');
+}
+
+function createTable(headers) {
+    const table = document.createElement('table');
+    table.className = 'results-table';
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    for (const h of headers) {
+        const th = document.createElement('th');
+        th.textContent = h;
+        headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+    return table;
+}
+
+function appendRow(tbody, values) {
+    const tr = document.createElement('tr');
+    for (const val of values) {
+        const td = document.createElement('td');
+        td.textContent = val;
+        tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+}
+
+function formatValue(value, unit) {
+    if (value == null) return '';
+    return unit ? `${value} ${unit}` : `${value}`;
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function truncate(str, maxLen) {
+    if (!str || str.length <= maxLen) return str;
+    return str.substring(0, maxLen) + '...';
+}
+
+function downloadFile(content, mimeType, filename) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function showStatus(selector, text, type) {
+    const el = $(selector);
+    if (!el) return;
+    el.textContent = text;
+    el.className = `status-text ${type}`;
+    el.classList.remove('hidden');
+}
+
+function showValidationMessages(container, messages, type) {
+    if (!container) return;
+    container.innerHTML = '';
+    container.className = `validation-messages ${type}`;
+    container.classList.remove('hidden');
+
+    const title = document.createElement('strong');
+    title.textContent = type === 'warnings' ? 'Warnings:' : 'Errors:';
+    container.appendChild(title);
+
+    const ul = document.createElement('ul');
+    for (const msg of messages) {
+        const li = document.createElement('li');
+        li.textContent = msg;
+        ul.appendChild(li);
+    }
+    container.appendChild(ul);
+}
+
+// ============================================================
+// Init
+// ============================================================
+
+refreshXmlProfileSelect();
+refreshTrainProfilesList();

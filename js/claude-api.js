@@ -27,7 +27,7 @@ export async function extractCalibrationData(apiKey, pdfText, pdfMetadata = {}) 
         },
         body: JSON.stringify({
             model: MODEL,
-            max_tokens: 8192,
+            max_tokens: 16384,
             system: systemPrompt,
             messages: [{ role: 'user', content: userPrompt }],
         }),
@@ -52,106 +52,194 @@ export async function extractCalibrationData(apiKey, pdfText, pdfMetadata = {}) 
 
 function buildSystemPrompt() {
     return `Du bist ein Experte für Kalibrierzertifikate und den DCC-Standard (Digital Calibration Certificate) der PTB.
-Deine Aufgabe ist es, aus dem Text eines PDF-Kalibrierzertifikats alle relevanten Daten zu extrahieren und als strukturiertes JSON zurückzugeben.
+Deine Aufgabe ist es, aus dem Text eines PDF-Kalibrierzertifikats ALLE relevanten Daten vollständig zu extrahieren und als strukturiertes JSON zurückzugeben.
+
+WICHTIG: Extrahiere wirklich ALLE Informationen aus dem Zertifikat. Kalibrierzertifikate enthalten viele verschiedene Datenfelder - Auftragsnummern, Equipment-Nummern, Prüfmittelnummern, Tag-Nummern, Kalibrierzeichen, Verfahrensbeschreibungen, Entscheidungsregeln, Zubehör, SOPs, Medien-Bedingungen, As-Found/As-Left-Werte, Abweichungen, zulässige Abweichungen, MPE, Konformitätsbewertungen pro Messpunkt, etc.
 
 Das JSON muss folgende Struktur haben (fehlende Werte als null):
 
 {
   "coreData": {
-    "countryCodeISO3166_1": "DE",
-    "languageCode": "de",
-    "uniqueIdentifier": "Zertifikats-/Berichtsnummer",
+    "countryCodeISO3166_1": "DE oder US etc. (ISO 3166-1)",
+    "languageCode": "de oder en etc. (ISO 639-1, Hauptsprache des Zertifikats)",
+    "uniqueIdentifier": "Zertifikatsnummer / Certificate number",
+    "calibrationMark": "Kalibrierzeichen (z.B. D-K-15070-01-00 2023-04)",
     "beginPerformanceDate": "YYYY-MM-DD",
     "endPerformanceDate": "YYYY-MM-DD",
-    "performanceLocation": "laboratory|customer"
+    "performanceLocation": "laboratory oder customer",
+    "orderNumber": "Auftragsnummer / Order No. / Service order number",
+    "previousReport": "Vorheriger Kalibrierschein / Bezug auf früheren Bericht"
   },
   "calibrationLaboratory": {
-    "name": "Name des Labors",
-    "calibrationLaboratoryCode": "DAkkS-Code o.ä.",
+    "name": "Name des Kalibrierlaboratoriums",
+    "calibrationLaboratoryCode": "DAkkS-Code / Akkreditierungsnummer (z.B. D-K-15070-01-00)",
     "street": "Straße und Hausnummer",
     "postCode": "PLZ",
     "city": "Stadt",
-    "country": "DE",
-    "eMail": "E-Mail falls vorhanden",
-    "phone": "Telefon falls vorhanden"
+    "country": "Ländercode (z.B. DE, US)",
+    "eMail": "E-Mail-Adresse",
+    "phone": "Telefonnummer",
+    "fax": "Faxnummer",
+    "website": "Website-URL"
   },
   "customer": {
-    "name": "Name des Kunden/Auftraggebers",
+    "name": "Name des Kunden/Auftraggebers (inkl. Zusatzzeilen)",
     "street": "Straße und Hausnummer",
     "postCode": "PLZ",
     "city": "Stadt",
-    "country": "DE"
+    "country": "Ländercode",
+    "eMail": "E-Mail",
+    "phone": "Telefon",
+    "contactPerson": "Ansprechpartner / Contact person"
+  },
+  "calibrationLocation": {
+    "name": "Firmenname am Kalibrierort (falls abweichend vom Labor und Kunden)",
+    "street": "Straße",
+    "postCode": "PLZ",
+    "city": "Stadt",
+    "country": "Ländercode"
   },
   "respPersons": [
     {
-      "name": "Name",
-      "role": "Rolle (z.B. Prüfer, Leiter)"
+      "name": "Vollständiger Name",
+      "role": "Rolle (z.B. Leiter des Kalibrierlaboratoriums, Freigabe, Service Technician, Manager, Customer)",
+      "isMainSigner": true
     }
   ],
   "items": [
     {
-      "name": "Bezeichnung des Prüflings",
-      "manufacturer": "Hersteller",
-      "model": "Typ/Modell",
-      "serialNumber": "Seriennummer",
-      "inventoryNumber": "Inventarnummer/Equipment-ID",
-      "description": "Weitere Beschreibung"
+      "name": "Bezeichnung des Prüflings / Calibration object / Unit Under Test (UUT)",
+      "manufacturer": "Hersteller / Manufacturer",
+      "model": "Typ/Modell / Type / Model",
+      "serialNumber": "Seriennummer / Fabrikat-Nr. / Serial number",
+      "inventoryNumber": "Inventarnummer / Equipment-ID / Inventory number",
+      "equipmentNumber": "Equipment-Nr. / Equipment number",
+      "testEquipmentNumber": "Prüfmittel-Nr. / Test equipment number",
+      "tagNumber": "Tag-Nr. / Tag number",
+      "description": "Weitere Beschreibung des Prüflings",
+      "parameter": "Messparameter (z.B. Temperatur, Volume, Druck, Flow)",
+      "measuringRange": "Messbereich (z.B. '0...200 l' oder '-50...300 °C')",
+      "signalOutput": "Signalausgang (z.B. '4...20 mA')",
+      "calibrationRange": "Kalibrierbereich (z.B. '0...200 l')",
+      "medium": "Medium (z.B. OIL, Wasser, Luft, N2)",
+      "mediumConditions": [
+        {
+          "name": "z.B. Temperature, API gravity, Conductivity, Pressure",
+          "value": "Wert (als String, z.B. '27 C', '45.32 APIg', '867 mS/cm')"
+        }
+      ],
+      "calibrationFactorsAsFound": [{"index": 1, "value": "Wert"}],
+      "calibrationFactorsAsLeft": [{"index": 1, "value": "Wert"}],
+      "mpe": "Maximum Permissible Error (MPE) - allgemeine Angabe falls vorhanden"
+    }
+  ],
+  "accessories": [
+    {
+      "type": "Typ-Kürzel (z.B. TTX)",
+      "description": "Beschreibung (z.B. Temperature TX Type A)",
+      "serialNumber": "Seriennummer"
     }
   ],
   "measurementResults": [
     {
-      "name": "Name der Messreihe/des Messverfahrens",
-      "description": "Beschreibung",
-      "method": "Verwendete Methode/Norm",
+      "name": "Name der Messreihe (z.B. 'Kanal 1', 'Calibration values as found', 'Calibration values as left')",
+      "description": "Beschreibung der Messreihe",
+      "category": "asFound oder asLeft oder corrected oder null",
+      "calibrationProcedure": "Ausführliche Beschreibung des Kalibrierverfahrens (DE und/oder EN Text)",
+      "method": "Hauptmethode/Norm (z.B. ISO-Norm, Verfahrensbeschreibung-Nr.)",
+      "usedMethods": [
+        {
+          "name": "Name/Nummer (z.B. SOP-Nr. 'QP01005H/88/EN', Verfahrensbeschreibung '3-APD-0-0016-DE')",
+          "description": "Beschreibung des Verfahrens"
+        }
+      ],
+      "referenceStandard": "Referenzmaterial/Standard (z.B. 'Aluminium', 'Stahl', Prüfkörper-Beschreibung)",
+      "decisionRule": "Entscheidungsregel (z.B. 'Vertrauensniveau 95 mit Konformitätswahrscheinlichkeit > 95%')",
       "influenceConditions": [
         {
-          "name": "z.B. Umgebungstemperatur",
+          "name": "z.B. Umgebungstemperatur / Ambient temperature",
           "value": 23.0,
           "unit": "\\\\degC",
+          "min": null,
+          "max": null,
           "uncertainty": null
         }
       ],
       "results": [
         {
-          "name": "Messpunkt-Bezeichnung",
+          "name": "Messpunkt-Bezeichnung (z.B. 'Punkt 1', 'Test point 1')",
+          "setPoint": null,
+          "setPointUnit": null,
           "nominalValue": 100.0,
           "nominalUnit": "\\\\degC",
+          "referenceValue": null,
+          "referenceUnit": null,
           "measuredValue": 100.02,
           "measuredUnit": "\\\\degC",
-          "uncertainty": 0.05,
+          "deviation": -0.05,
+          "deviationUnit": "\\\\degC",
+          "allowedDeviation": 3.428,
+          "allowedDeviationUnit": "\\\\degC",
+          "uncertainty": 0.8,
           "uncertaintyUnit": "\\\\degC",
           "coverageFactor": 2.0,
-          "coverageProbability": 0.95
+          "coverageProbability": 0.95,
+          "mpe": null,
+          "mpeUnit": null,
+          "conformity": "pass oder fail oder null"
         }
       ]
     }
   ],
   "measuringEquipments": [
     {
-      "name": "Bezeichnung des Normals/Referenzgeräts",
+      "name": "Bezeichnung des Normals/Referenzgeräts (z.B. 'DAkkS-Oberflächentemperatureinrichtung Kanal 13 Alu 3')",
       "manufacturer": "Hersteller",
       "model": "Typ/Modell",
       "serialNumber": "Seriennummer",
+      "equipmentNumber": "Equipment-Nr. / Eq.-No.",
       "certificateNumber": "Zertifikat-Nr. des Normals",
-      "traceability": "Rückführbarkeit"
+      "calibrationMark": "Kalibrierzeichen des Normals (z.B. D-K-15070-01-01 2021-05)",
+      "calibrationDate": "Kalibrierdatum des Normals (YYYY-MM-DD)",
+      "nextCalibrationDate": "Nächstes Kalibrierdatum / Due date (YYYY-MM-DD)",
+      "traceability": "Rückführbarkeit (z.B. DAkkS, NIST, UKAS)"
+    }
+  ],
+  "calibrationSOPs": [
+    {
+      "sopNumber": "SOP-Nummer (z.B. QP01005H/88/EN)",
+      "description": "Beschreibung des SOP"
     }
   ],
   "statements": [
     {
-      "name": "z.B. Konformitätsaussage",
-      "description": "Inhalt der Aussage",
-      "conformity": "pass|fail|null"
+      "name": "z.B. Konformitätsaussage / Conformity statement / UUT Conformity",
+      "description": "Vollständiger Inhalt der Aussage (DE und/oder EN)",
+      "conformity": "pass oder fail oder null",
+      "decisionRule": "Entscheidungsregel (z.B. 'Vertrauensniveau 95', 'ISO 14253-1')",
+      "conformityProbability": "z.B. '>95%'",
+      "norm": "Bezugsnorm (z.B. 'EA-4/02 M: 2022', 'ISO/IEC 17025:2017', 'ISO 14253-1')"
     }
-  ]
+  ],
+  "remarks": "Bemerkungen / Remarks (vollständiger Text oder null)"
 }
 
-Regeln:
-- Extrahiere ALLE Messwerte die im Zertifikat enthalten sind, inklusive Unsicherheiten.
-- Verwende SI-Einheiten wo möglich.
-- Datumsformat: YYYY-MM-DD
+Wichtige Regeln:
+- Extrahiere ALLE Messwerte die im Zertifikat enthalten sind, inklusive Unsicherheiten, Abweichungen und zulässige Abweichungen.
+- Wenn es separate "As Found" und "As Left" Tabellen gibt, erstelle dafür SEPARATE measurementResults-Einträge mit category "asFound" bzw. "asLeft".
+- Wenn es Oberflächenzuschlag-korrigierte Werte gibt, erstelle einen zusätzlichen measurementResults-Eintrag mit category "corrected".
+- Extrahiere ALLE Messeinrichtungen/Referenznormale mit allen verfügbaren Details (Equipment-Nr., Zertifikat-Nr., Kalibrierdatum, nächstes Kalibrierdatum, Rückführung).
+- Extrahiere ALLE verantwortlichen Personen mit ihren Rollen (Leiter, Freigabe, Techniker, Manager etc.).
+- Extrahiere ALLE Zubehörteile/Komponenten (Accessories/Components) falls vorhanden.
+- Extrahiere ALLE SOPs/Kalibrierverfahren falls aufgelistet.
+- Verwende SI-Einheiten wo möglich. Für Temperaturen verwende \\\\degC.
+- Datumsformat: YYYY-MM-DD. Konvertiere Datumsangaben wie "25.04.2023" zu "2023-04-25".
 - Wenn nur ein einzelnes Kalibrierdatum angegeben ist, setze beginPerformanceDate und endPerformanceDate auf denselben Wert.
-- Extrahiere auch Umgebungsbedingungen (Temperatur, Luftfeuchte etc.) als influenceConditions.
+- Extrahiere auch Umgebungsbedingungen (Temperatur, Luftfeuchte, Druck etc.) als influenceConditions. Wenn Bereiche angegeben sind (z.B. "(20...26) °C"), verwende min und max statt value.
+- Extrahiere den vollständigen Kalibrierverfahren-Text (DE und EN) in calibrationProcedure.
+- Extrahiere die Konformitätsaussage vollständig inkl. Entscheidungsregel und Bezugsnorm.
 - Wenn Informationen nicht vorhanden sind, setze den Wert auf null.
+- Wenn calibrationLocation nicht explizit angegeben ist oder identisch mit dem Labor, setze calibrationLocation auf null.
 - Antworte NUR mit dem JSON-Objekt, kein weiterer Text.`;
 }
 

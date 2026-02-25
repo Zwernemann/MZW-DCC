@@ -1,203 +1,578 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF &rarr; DCC Konverter</title>
+    <title>DCC Converter &mdash; PDF &amp; XML to Digital Calibration Certificate</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.mjs" type="module"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>PDF &rarr; DCC Konverter</h1>
-            <p class="subtitle">Kalibrierzertifikate (PDF) in Digitale Kalibrierzertifikate (DCC v3.3.0) umwandeln</p>
+            <h1>DCC Converter</h1>
+            <p class="subtitle">Convert calibration certificates (PDF / XML) to Digital Calibration Certificates (DCC v3.3.0)</p>
         </header>
 
-        <!-- Step 1: API Key -->
-        <section id="step-apikey" class="step active">
-            <div class="step-header">
-                <span class="step-number">1</span>
-                <h2>Claude API-Key</h2>
-            </div>
-            <div class="step-content">
-                <p>Gib Deinen Anthropic API-Key ein. Der Key wird nur lokal im Browser verwendet und nicht gespeichert.</p>
-                <div class="input-group">
-                    <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." autocomplete="off">
-                    <button id="btn-save-key" class="btn btn-primary">Speichern</button>
-                </div>
-                <p id="api-key-status" class="status-text"></p>
-            </div>
+        <!-- Mode Selector -->
+        <section class="mode-selector">
+            <button class="mode-btn active" data-mode="pdf">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <span>PDF Upload</span>
+                <small>Extract data from PDF using AI</small>
+            </button>
+            <button class="mode-btn" data-mode="xml">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                    <polyline points="16 18 22 12 16 6"/>
+                    <polyline points="8 6 2 12 8 18"/>
+                </svg>
+                <span>XML Convert</span>
+                <small>Convert XML using saved mapping</small>
+            </button>
+            <button class="mode-btn" data-mode="train">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 16v-4"/>
+                    <path d="M12 8h.01"/>
+                </svg>
+                <span>Train Mapping</span>
+                <small>Create profile from XSD + XML</small>
+            </button>
         </section>
 
-        <!-- Step 2: PDF Upload -->
-        <section id="step-upload" class="step">
-            <div class="step-header">
-                <span class="step-number">2</span>
-                <h2>PDF hochladen</h2>
-            </div>
-            <div class="step-content">
-                <div id="drop-zone" class="drop-zone">
-                    <div class="drop-zone-content">
-                        <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="17 8 12 3 7 8"/>
-                            <line x1="12" y1="3" x2="12" y2="15"/>
-                        </svg>
-                        <p>PDF hier ablegen oder <label for="file-input" class="file-label">Datei ausw&auml;hlen</label></p>
-                        <input type="file" id="file-input" accept=".pdf" hidden>
+        <!-- ============================================ -->
+        <!-- PDF MODE -->
+        <!-- ============================================ -->
+        <div id="mode-pdf" class="mode-content active">
+
+            <!-- Step 1: API Key -->
+            <section id="pdf-step-apikey" class="step active">
+                <div class="step-header">
+                    <span class="step-number">1</span>
+                    <h2>Claude API Key</h2>
+                </div>
+                <div class="step-content">
+                    <p>Enter your Anthropic API key. The key is only used locally in your browser and is not stored.</p>
+                    <div class="input-group">
+                        <input type="password" id="pdf-api-key-input" placeholder="sk-ant-api03-..." autocomplete="off">
+                        <button id="pdf-btn-save-key" class="btn btn-primary">Save</button>
+                    </div>
+                    <p id="pdf-api-key-status" class="status-text"></p>
+                </div>
+            </section>
+
+            <!-- Step 2: PDF Upload -->
+            <section id="pdf-step-upload" class="step">
+                <div class="step-header">
+                    <span class="step-number">2</span>
+                    <h2>Upload PDF</h2>
+                </div>
+                <div class="step-content">
+                    <div id="pdf-drop-zone" class="drop-zone">
+                        <div class="drop-zone-content">
+                            <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <p>Drop PDF here or <label for="pdf-file-input" class="file-label">browse files</label></p>
+                            <input type="file" id="pdf-file-input" accept=".pdf" hidden>
+                        </div>
+                    </div>
+                    <div id="pdf-file-info" class="file-info hidden">
+                        <span id="pdf-file-name"></span>
+                        <button id="pdf-btn-remove-file" class="btn btn-small">&times;</button>
                     </div>
                 </div>
-                <div id="file-info" class="file-info hidden">
-                    <span id="file-name"></span>
-                    <button id="btn-remove-file" class="btn btn-small">&times;</button>
-                </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- Step 3: Extraction -->
-        <section id="step-extract" class="step">
-            <div class="step-header">
-                <span class="step-number">3</span>
-                <h2>Daten extrahieren</h2>
-            </div>
-            <div class="step-content">
-                <button id="btn-extract" class="btn btn-primary" disabled>PDF analysieren &amp; Daten extrahieren</button>
-                <div id="extraction-progress" class="progress-container hidden">
-                    <div class="progress-bar">
-                        <div id="progress-fill" class="progress-fill"></div>
+            <!-- Step 3: Extraction -->
+            <section id="pdf-step-extract" class="step">
+                <div class="step-header">
+                    <span class="step-number">3</span>
+                    <h2>Extract Data</h2>
+                </div>
+                <div class="step-content">
+                    <button id="pdf-btn-extract" class="btn btn-primary" disabled>Analyze PDF &amp; Extract Data</button>
+                    <div id="pdf-extraction-progress" class="progress-container hidden">
+                        <div class="progress-bar">
+                            <div id="pdf-progress-fill" class="progress-fill"></div>
+                        </div>
+                        <p id="pdf-progress-text" class="progress-text">Reading PDF...</p>
                     </div>
-                    <p id="progress-text" class="progress-text">PDF wird gelesen...</p>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- Step 4: Preview & Edit -->
-        <section id="step-preview" class="step">
-            <div class="step-header">
-                <span class="step-number">4</span>
-                <h2>Vorschau &amp; Bearbeitung</h2>
-            </div>
-            <div class="step-content">
-                <div id="preview-tabs" class="tabs">
-                    <button class="tab active" data-tab="tab-admin">Verwaltungsdaten</button>
-                    <button class="tab" data-tab="tab-items">Pr&uuml;fmittel</button>
-                    <button class="tab" data-tab="tab-results">Messergebnisse</button>
-                    <button class="tab" data-tab="tab-xml">XML Vorschau</button>
+            <!-- Step 4: Preview & Edit -->
+            <section id="pdf-step-preview" class="step">
+                <div class="step-header">
+                    <span class="step-number">4</span>
+                    <h2>Preview &amp; Edit</h2>
                 </div>
+                <div class="step-content">
+                    <div id="pdf-preview-tabs" class="tabs">
+                        <button class="tab active" data-tab="pdf-tab-admin">Administrative</button>
+                        <button class="tab" data-tab="pdf-tab-items">Calibration Item</button>
+                        <button class="tab" data-tab="pdf-tab-equipment">Equipment</button>
+                        <button class="tab" data-tab="pdf-tab-results">Results</button>
+                        <button class="tab" data-tab="pdf-tab-statements">Conformity</button>
+                        <button class="tab" data-tab="pdf-tab-xml">XML Preview</button>
+                    </div>
 
-                <!-- Admin Data Tab -->
-                <div id="tab-admin" class="tab-content active">
+                    <!-- Admin Data Tab -->
+                    <div id="pdf-tab-admin" class="tab-content active">
+                        <h3 class="section-title">Core Data</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="field-cert-id">Certificate Number</label>
+                                <input type="text" id="field-cert-id">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-cal-mark">Calibration Mark</label>
+                                <input type="text" id="field-cal-mark">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-order-number">Order Number</label>
+                                <input type="text" id="field-order-number">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-country">Country Code (ISO 3166)</label>
+                                <input type="text" id="field-country" maxlength="2" placeholder="DE">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-begin-date">Calibration Date (Start)</label>
+                                <input type="date" id="field-begin-date">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-end-date">Calibration Date (End)</label>
+                                <input type="date" id="field-end-date">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-perf-location">Performance Location</label>
+                                <select id="field-perf-location">
+                                    <option value="laboratory">Laboratory</option>
+                                    <option value="customer">Customer site</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <h3 class="section-title">Calibration Laboratory</h3>
+                        <div class="form-grid">
+                            <div class="form-group full-width">
+                                <label for="field-lab-name">Name</label>
+                                <input type="text" id="field-lab-name">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-lab-code">Accreditation Code</label>
+                                <input type="text" id="field-lab-code">
+                            </div>
+                            <div class="form-group full-width">
+                                <label for="field-lab-street">Street</label>
+                                <input type="text" id="field-lab-street">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-lab-zip">Post Code</label>
+                                <input type="text" id="field-lab-zip">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-lab-city">City</label>
+                                <input type="text" id="field-lab-city">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-lab-phone">Phone</label>
+                                <input type="text" id="field-lab-phone">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-lab-fax">Fax</label>
+                                <input type="text" id="field-lab-fax">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-lab-email">E-Mail</label>
+                                <input type="text" id="field-lab-email">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-lab-website">Website</label>
+                                <input type="text" id="field-lab-website">
+                            </div>
+                        </div>
+
+                        <h3 class="section-title">Customer</h3>
+                        <div class="form-grid">
+                            <div class="form-group full-width">
+                                <label for="field-customer-name">Name</label>
+                                <input type="text" id="field-customer-name">
+                            </div>
+                            <div class="form-group full-width">
+                                <label for="field-customer-street">Street</label>
+                                <input type="text" id="field-customer-street">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-customer-zip">Post Code</label>
+                                <input type="text" id="field-customer-zip">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-customer-city">City</label>
+                                <input type="text" id="field-customer-city">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-customer-contact">Contact Person</label>
+                                <input type="text" id="field-customer-contact">
+                            </div>
+                        </div>
+
+                        <h3 class="section-title">Responsible Persons</h3>
+                        <div id="resp-persons-container">
+                            <p class="placeholder-text">Persons will appear after extraction.</p>
+                        </div>
+                    </div>
+
+                    <!-- Items Tab -->
+                    <div id="pdf-tab-items" class="tab-content">
+                        <h3 class="section-title">Calibration Item / UUT</h3>
+                        <div class="form-grid">
+                            <div class="form-group full-width">
+                                <label for="field-item-name">Name / Description</label>
+                                <input type="text" id="field-item-name">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-item-manufacturer">Manufacturer</label>
+                                <input type="text" id="field-item-manufacturer">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-item-model">Model / Type</label>
+                                <input type="text" id="field-item-model">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-item-serial">Serial Number</label>
+                                <input type="text" id="field-item-serial">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-item-id">Inventory Number</label>
+                                <input type="text" id="field-item-id">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-item-equip-nr">Equipment No.</label>
+                                <input type="text" id="field-item-equip-nr">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-item-test-equip-nr">Test Equipment No.</label>
+                                <input type="text" id="field-item-test-equip-nr">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-item-tag-nr">Tag No.</label>
+                                <input type="text" id="field-item-tag-nr">
+                            </div>
+                        </div>
+
+                        <h3 class="section-title">Measurement Details</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="field-item-parameter">Parameter</label>
+                                <input type="text" id="field-item-parameter" placeholder="e.g. Temperature, Volume">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-item-range">Measuring Range</label>
+                                <input type="text" id="field-item-range" placeholder="e.g. 0...200 l">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-item-signal">Signal Output</label>
+                                <input type="text" id="field-item-signal" placeholder="e.g. 4...20 mA">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-item-cal-range">Calibration Range</label>
+                                <input type="text" id="field-item-cal-range" placeholder="e.g. 0...200 l">
+                            </div>
+                            <div class="form-group">
+                                <label for="field-item-medium">Medium</label>
+                                <input type="text" id="field-item-medium" placeholder="e.g. OIL, Water">
+                            </div>
+                            <div class="form-group full-width">
+                                <label for="field-item-description">Description</label>
+                                <textarea id="field-item-description" rows="2"></textarea>
+                            </div>
+                        </div>
+
+                        <h3 class="section-title">Accessories / Components</h3>
+                        <div id="accessories-container">
+                            <p class="placeholder-text">Accessories will appear after extraction.</p>
+                        </div>
+                    </div>
+
+                    <!-- Equipment Tab -->
+                    <div id="pdf-tab-equipment" class="tab-content">
+                        <h3 class="section-title">Measuring Equipment / Reference Standards</h3>
+                        <div id="equipment-container">
+                            <p class="placeholder-text">Equipment will appear after extraction.</p>
+                        </div>
+
+                        <h3 class="section-title">Calibration Procedures (SOPs)</h3>
+                        <div id="sops-container">
+                            <p class="placeholder-text">SOPs will appear after extraction.</p>
+                        </div>
+                    </div>
+
+                    <!-- Results Tab -->
+                    <div id="pdf-tab-results" class="tab-content">
+                        <div id="results-container">
+                            <p class="placeholder-text">Measurement results will appear after extraction.</p>
+                        </div>
+                    </div>
+
+                    <!-- Statements Tab -->
+                    <div id="pdf-tab-statements" class="tab-content">
+                        <h3 class="section-title">Conformity Statements</h3>
+                        <div id="statements-container">
+                            <p class="placeholder-text">Conformity statements will appear after extraction.</p>
+                        </div>
+
+                        <h3 class="section-title">Remarks</h3>
+                        <div class="form-grid">
+                            <div class="form-group full-width">
+                                <textarea id="field-remarks" rows="3" placeholder="Remarks / Comments"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- XML Preview Tab -->
+                    <div id="pdf-tab-xml" class="tab-content">
+                        <pre id="xml-preview" class="xml-preview"><code>XML will appear after extraction.</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 5: Download -->
+            <section id="pdf-step-download" class="step">
+                <div class="step-header">
+                    <span class="step-number">5</span>
+                    <h2>Download DCC</h2>
+                </div>
+                <div class="step-content">
+                    <div class="button-group">
+                        <button id="pdf-btn-generate-xml" class="btn btn-primary" disabled>Generate DCC XML</button>
+                        <button id="pdf-btn-download" class="btn btn-success" disabled>Download XML</button>
+                    </div>
+                    <div id="pdf-validation-messages" class="validation-messages hidden"></div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- XML CONVERT MODE -->
+        <!-- ============================================ -->
+        <div id="mode-xml" class="mode-content">
+
+            <!-- Step 1: Select Profile -->
+            <section id="xml-step-profile" class="step active">
+                <div class="step-header">
+                    <span class="step-number">1</span>
+                    <h2>Select Mapping Profile</h2>
+                </div>
+                <div class="step-content">
+                    <p>Choose a saved mapping profile or import one from a JSON file.</p>
+                    <div class="profile-actions">
+                        <select id="xml-profile-select" class="profile-select">
+                            <option value="">-- No profiles saved --</option>
+                        </select>
+                        <button id="xml-btn-import-profile" class="btn btn-small">Import JSON</button>
+                        <input type="file" id="xml-import-profile-input" accept=".json" hidden>
+                    </div>
+                    <div id="xml-profile-info" class="profile-info hidden">
+                        <p><strong id="xml-profile-name"></strong></p>
+                        <p class="text-muted" id="xml-profile-desc"></p>
+                        <p class="text-muted">Namespace: <code id="xml-profile-ns"></code></p>
+                        <p class="text-muted">Mappings: <span id="xml-profile-count"></span></p>
+                        <div class="button-group" style="margin-top: 0.5rem;">
+                            <button id="xml-btn-export-profile" class="btn btn-small">Export</button>
+                            <button id="xml-btn-delete-profile" class="btn btn-small btn-danger-text">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 2: Upload XML -->
+            <section id="xml-step-upload" class="step">
+                <div class="step-header">
+                    <span class="step-number">2</span>
+                    <h2>Upload XML File</h2>
+                </div>
+                <div class="step-content">
+                    <div id="xml-drop-zone" class="drop-zone">
+                        <div class="drop-zone-content">
+                            <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="16 18 22 12 16 6"/>
+                                <polyline points="8 6 2 12 8 18"/>
+                            </svg>
+                            <p>Drop XML file here or <label for="xml-file-input" class="file-label">browse files</label></p>
+                            <input type="file" id="xml-file-input" accept=".xml" hidden>
+                        </div>
+                    </div>
+                    <div id="xml-file-info" class="file-info hidden">
+                        <span id="xml-file-name"></span>
+                        <button id="xml-btn-remove-file" class="btn btn-small">&times;</button>
+                    </div>
+                    <div id="xml-auto-detect" class="auto-detect-msg hidden">
+                        <span class="badge badge-success">Auto-detected</span>
+                        <span id="xml-auto-detect-name"></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 3: Convert -->
+            <section id="xml-step-convert" class="step">
+                <div class="step-header">
+                    <span class="step-number">3</span>
+                    <h2>Convert to DCC</h2>
+                </div>
+                <div class="step-content">
+                    <button id="xml-btn-convert" class="btn btn-primary" disabled>Convert XML to DCC</button>
+                    <p class="text-muted" style="margin-top: 0.5rem; font-size: 0.85rem;">No API calls needed &mdash; conversion runs locally in your browser.</p>
+                    <div id="xml-conversion-status" class="status-text hidden"></div>
+                </div>
+            </section>
+
+            <!-- Step 4: Preview -->
+            <section id="xml-step-preview" class="step">
+                <div class="step-header">
+                    <span class="step-number">4</span>
+                    <h2>Preview &amp; Download</h2>
+                </div>
+                <div class="step-content">
+                    <div class="tabs">
+                        <button class="tab active" data-tab="xml-tab-json">JSON Data</button>
+                        <button class="tab" data-tab="xml-tab-dcc">DCC XML</button>
+                    </div>
+                    <div id="xml-tab-json" class="tab-content active">
+                        <pre id="xml-json-preview" class="xml-preview"><code>Converted data will appear here.</code></pre>
+                    </div>
+                    <div id="xml-tab-dcc" class="tab-content">
+                        <pre id="xml-dcc-preview" class="xml-preview"><code>DCC XML will appear here.</code></pre>
+                    </div>
+                    <div class="button-group" style="margin-top: 1rem;">
+                        <button id="xml-btn-download" class="btn btn-success" disabled>Download DCC XML</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- TRAIN MAPPING MODE -->
+        <!-- ============================================ -->
+        <div id="mode-train" class="mode-content">
+
+            <!-- Step 1: API Key -->
+            <section id="train-step-apikey" class="step active">
+                <div class="step-header">
+                    <span class="step-number">1</span>
+                    <h2>Claude API Key</h2>
+                </div>
+                <div class="step-content">
+                    <p>An API key is needed once to analyze the schema and generate a mapping profile.</p>
+                    <div class="input-group">
+                        <input type="password" id="train-api-key-input" placeholder="sk-ant-api03-..." autocomplete="off">
+                        <button id="train-btn-save-key" class="btn btn-primary">Save</button>
+                    </div>
+                    <p id="train-api-key-status" class="status-text"></p>
+                </div>
+            </section>
+
+            <!-- Step 2: Upload XSD + XML -->
+            <section id="train-step-upload" class="step">
+                <div class="step-header">
+                    <span class="step-number">2</span>
+                    <h2>Upload XSD &amp; Sample XML</h2>
+                </div>
+                <div class="step-content">
                     <div class="form-grid">
                         <div class="form-group">
-                            <label for="field-cert-id">Zertifikatsnummer</label>
-                            <input type="text" id="field-cert-id" data-path="coreData.uniqueIdentifier">
+                            <label for="train-profile-name">Profile Name</label>
+                            <input type="text" id="train-profile-name" placeholder="e.g. Endress+Hauser Calibration">
                         </div>
-                        <div class="form-group">
-                            <label for="field-country">L&auml;ndercode (ISO 3166)</label>
-                            <input type="text" id="field-country" data-path="coreData.countryCodeISO3166_1" maxlength="2" placeholder="DE">
+                    </div>
+                    <div class="upload-pair">
+                        <div class="upload-box">
+                            <h4>XSD Schema</h4>
+                            <div id="train-xsd-drop" class="drop-zone drop-zone-small">
+                                <p>Drop XSD or <label for="train-xsd-input" class="file-label">browse</label></p>
+                                <input type="file" id="train-xsd-input" accept=".xsd,.xml" hidden>
+                            </div>
+                            <div id="train-xsd-info" class="file-info hidden">
+                                <span id="train-xsd-name"></span>
+                                <button class="btn btn-small train-btn-remove-xsd">&times;</button>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="field-begin-date">Kalibrierdatum (Beginn)</label>
-                            <input type="date" id="field-begin-date" data-path="coreData.beginPerformanceDate">
-                        </div>
-                        <div class="form-group">
-                            <label for="field-end-date">Kalibrierdatum (Ende)</label>
-                            <input type="date" id="field-end-date" data-path="coreData.endPerformanceDate">
-                        </div>
-                        <div class="form-group full-width">
-                            <label for="field-lab-name">Kalibrierlaboratorium</label>
-                            <input type="text" id="field-lab-name" data-path="calibrationLaboratory.name">
-                        </div>
-                        <div class="form-group full-width">
-                            <label for="field-lab-street">Stra&szlig;e</label>
-                            <input type="text" id="field-lab-street" data-path="calibrationLaboratory.street">
-                        </div>
-                        <div class="form-group">
-                            <label for="field-lab-zip">PLZ</label>
-                            <input type="text" id="field-lab-zip" data-path="calibrationLaboratory.postCode">
-                        </div>
-                        <div class="form-group">
-                            <label for="field-lab-city">Ort</label>
-                            <input type="text" id="field-lab-city" data-path="calibrationLaboratory.city">
-                        </div>
-                        <div class="form-group full-width">
-                            <label for="field-customer-name">Auftraggeber</label>
-                            <input type="text" id="field-customer-name" data-path="customer.name">
-                        </div>
-                        <div class="form-group full-width">
-                            <label for="field-customer-street">Stra&szlig;e</label>
-                            <input type="text" id="field-customer-street" data-path="customer.street">
-                        </div>
-                        <div class="form-group">
-                            <label for="field-customer-zip">PLZ</label>
-                            <input type="text" id="field-customer-zip" data-path="customer.postCode">
-                        </div>
-                        <div class="form-group">
-                            <label for="field-customer-city">Ort</label>
-                            <input type="text" id="field-customer-city" data-path="customer.city">
-                        </div>
-                        <div class="form-group full-width">
-                            <label for="field-resp-person">Verantwortliche Person</label>
-                            <input type="text" id="field-resp-person" data-path="respPerson.name">
+                        <div class="upload-box">
+                            <h4>Sample XML</h4>
+                            <div id="train-xml-drop" class="drop-zone drop-zone-small">
+                                <p>Drop XML or <label for="train-xml-input" class="file-label">browse</label></p>
+                                <input type="file" id="train-xml-input" accept=".xml" hidden>
+                            </div>
+                            <div id="train-xml-info" class="file-info hidden">
+                                <span id="train-xml-name"></span>
+                                <button class="btn btn-small train-btn-remove-xml">&times;</button>
+                            </div>
                         </div>
                     </div>
                 </div>
+            </section>
 
-                <!-- Items Tab -->
-                <div id="tab-items" class="tab-content">
-                    <div class="form-grid">
-                        <div class="form-group full-width">
-                            <label for="field-item-name">Bezeichnung des Pr&uuml;flings</label>
-                            <input type="text" id="field-item-name" data-path="item.name">
+            <!-- Step 3: Train -->
+            <section id="train-step-train" class="step">
+                <div class="step-header">
+                    <span class="step-number">3</span>
+                    <h2>Generate Mapping Profile</h2>
+                </div>
+                <div class="step-content">
+                    <button id="train-btn-train" class="btn btn-primary" disabled>Train Mapping with Claude</button>
+                    <div id="train-progress" class="progress-container hidden">
+                        <div class="progress-bar">
+                            <div id="train-progress-fill" class="progress-fill"></div>
                         </div>
-                        <div class="form-group">
-                            <label for="field-item-manufacturer">Hersteller</label>
-                            <input type="text" id="field-item-manufacturer" data-path="item.manufacturer">
-                        </div>
-                        <div class="form-group">
-                            <label for="field-item-model">Modell / Typ</label>
-                            <input type="text" id="field-item-model" data-path="item.model">
-                        </div>
-                        <div class="form-group">
-                            <label for="field-item-serial">Seriennummer</label>
-                            <input type="text" id="field-item-serial" data-path="item.serialNumber">
-                        </div>
-                        <div class="form-group">
-                            <label for="field-item-id">Inventarnummer / ID</label>
-                            <input type="text" id="field-item-id" data-path="item.inventoryNumber">
-                        </div>
+                        <p id="train-progress-text" class="progress-text">Sending to Claude API...</p>
                     </div>
                 </div>
+            </section>
 
-                <!-- Results Tab -->
-                <div id="tab-results" class="tab-content">
-                    <div id="results-container">
-                        <p class="placeholder-text">Messergebnisse werden nach der Extraktion hier angezeigt.</p>
+            <!-- Step 4: Review & Save -->
+            <section id="train-step-review" class="step">
+                <div class="step-header">
+                    <span class="step-number">4</span>
+                    <h2>Review &amp; Save Profile</h2>
+                </div>
+                <div class="step-content">
+                    <div id="train-profile-summary" class="profile-summary hidden">
+                        <p><strong>Profile:</strong> <span id="train-result-name"></span></p>
+                        <p><strong>Namespace:</strong> <code id="train-result-ns"></code></p>
+                        <p><strong>Root Element:</strong> <code id="train-result-root"></code></p>
+                        <p><strong>Mappings:</strong> <span id="train-result-count"></span> rules</p>
+                    </div>
+                    <pre id="train-profile-preview" class="xml-preview" style="max-height: 300px;"><code>Profile JSON will appear here.</code></pre>
+                    <div class="button-group" style="margin-top: 1rem;">
+                        <button id="train-btn-save" class="btn btn-success" disabled>Save Profile</button>
+                        <button id="train-btn-export" class="btn btn-primary" disabled>Export as JSON</button>
+                    </div>
+                    <p id="train-save-status" class="status-text"></p>
+                </div>
+            </section>
+
+            <!-- Saved Profiles Overview -->
+            <section id="train-step-profiles" class="step active">
+                <div class="step-header">
+                    <span class="step-number">&bull;</span>
+                    <h2>Saved Profiles</h2>
+                </div>
+                <div class="step-content">
+                    <div id="train-profiles-list">
+                        <p class="placeholder-text">No mapping profiles saved yet.</p>
                     </div>
                 </div>
-
-                <!-- XML Preview Tab -->
-                <div id="tab-xml" class="tab-content">
-                    <pre id="xml-preview" class="xml-preview"><code>XML wird nach der Extraktion hier angezeigt.</code></pre>
-                </div>
-            </div>
-        </section>
-
-        <!-- Step 5: Download -->
-        <section id="step-download" class="step">
-            <div class="step-header">
-                <span class="step-number">5</span>
-                <h2>DCC herunterladen</h2>
-            </div>
-            <div class="step-content">
-                <div class="button-group">
-                    <button id="btn-generate-xml" class="btn btn-primary" disabled>DCC XML generieren</button>
-                    <button id="btn-download" class="btn btn-success" disabled>XML herunterladen</button>
-                </div>
-                <div id="validation-messages" class="validation-messages hidden"></div>
-            </div>
-        </section>
+            </section>
+        </div>
 
         <footer>
             <p>DCC Schema v3.3.0 &middot; <a href="https://ptb.de/dcc/" target="_blank">PTB DCC</a> &middot; <a href="https://wiki.dcc.ptb.de/" target="_blank">DCC Wiki</a></p>
@@ -207,6 +582,9 @@
     <script type="module" src="js/pdf-extractor.js"></script>
     <script type="module" src="js/claude-api.js"></script>
     <script type="module" src="js/dcc-xml-generator.js"></script>
+    <script type="module" src="js/mapping-engine.js"></script>
+    <script type="module" src="js/mapping-store.js"></script>
+    <script type="module" src="js/mapping-trainer.js"></script>
     <script type="module" src="js/app.js"></script>
 </body>
 </html>
