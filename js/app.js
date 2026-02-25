@@ -9,6 +9,7 @@ import { generateDccXml, validateData } from './dcc-xml-generator.js';
 import { convertXmlToDccJson } from './mapping-engine.js';
 import { getAllProfiles, saveProfile, getProfile, deleteProfile, exportProfile, importProfile, detectProfileForXml } from './mapping-store.js';
 import { trainMappingProfile } from './mapping-trainer.js';
+import { MappingEditor } from './mapping-editor.js';
 
 // ============================================================
 // State
@@ -34,6 +35,10 @@ let trainXsdContent = '';
 let trainXmlFile = null;
 let trainXmlContent = '';
 let trainedProfile = null;
+
+// Mapping editors
+let trainEditor = null;
+let xmlProfileEditor = null;
 
 // ============================================================
 // DOM Helpers
@@ -695,6 +700,48 @@ $('#xml-btn-delete-profile')?.addEventListener('click', () => {
     refreshXmlProfileSelect();
 });
 
+// --- XML Convert: Profile Editor ---
+
+$('#xml-btn-edit-profile')?.addEventListener('click', () => {
+    if (!selectedProfileId) return;
+    const profile = getProfile(selectedProfileId);
+    if (!profile) return;
+
+    const container = $('#xml-profile-editor-container');
+    const editorEl = $('#xml-mapping-editor');
+    if (!container || !editorEl) return;
+
+    container.classList.remove('hidden');
+
+    xmlProfileEditor = new MappingEditor(editorEl);
+    xmlProfileEditor.onChange = () => {
+        // Changes tracked in the editor, saved on explicit "Save Changes"
+    };
+    xmlProfileEditor.init(profile, xmlContent || null);
+});
+
+$('#xml-btn-save-edited-profile')?.addEventListener('click', () => {
+    if (!xmlProfileEditor || !selectedProfileId) return;
+    const updated = xmlProfileEditor.getProfile();
+    // Preserve metadata from the original profile
+    const original = getProfile(selectedProfileId);
+    if (original) {
+        updated.id = original.id;
+        updated.name = original.name;
+        updated.schemaNamespace = original.schemaNamespace;
+        updated.rootElement = original.rootElement;
+        updated.description = original.description;
+    }
+    saveProfile(updated);
+    showStatus('#xml-editor-status', 'Profile saved successfully!', 'success');
+    updateXmlProfileInfo();
+});
+
+$('#xml-btn-close-editor')?.addEventListener('click', () => {
+    $('#xml-profile-editor-container')?.classList.add('hidden');
+    xmlProfileEditor = null;
+});
+
 // ============================================================
 // XML CONVERT MODE - File Upload
 // ============================================================
@@ -917,9 +964,9 @@ $('#train-btn-train')?.addEventListener('click', async () => {
     setTrainProgress(20, 'Sending schema and sample to Claude API...');
 
     try {
-        setTrainProgress(40, 'Claude is analyzing the schema...');
-
-        trainedProfile = await trainMappingProfile(apiKey, trainXsdContent, trainXmlContent, profileName);
+        trainedProfile = await trainMappingProfile(apiKey, trainXsdContent, trainXmlContent, profileName, (pct, msg) => {
+            setTrainProgress(pct, msg);
+        });
 
         setTrainProgress(100, 'Mapping profile generated successfully!');
 
@@ -929,10 +976,28 @@ $('#train-btn-train')?.addEventListener('click', async () => {
         $('#train-result-ns').textContent = trainedProfile.schemaNamespace || 'N/A';
         $('#train-result-root').textContent = trainedProfile.rootElement || 'N/A';
         $('#train-result-count').textContent = trainedProfile.mappings?.length || 0;
+        $('#train-result-total').textContent = trainedProfile._totalRules || trainedProfile.mappings?.length || 0;
 
         // Show JSON preview
         const previewCode = $('#train-profile-preview code');
         if (previewCode) previewCode.textContent = JSON.stringify(trainedProfile, null, 2);
+
+        // Initialize visual editor
+        const editorContainer = $('#train-mapping-editor');
+        if (editorContainer) {
+            trainEditor = new MappingEditor(editorContainer);
+            trainEditor.onChange = (updatedProfile) => {
+                trainedProfile = { ...trainedProfile, mappings: updatedProfile.mappings };
+                // Sync JSON preview
+                const code = $('#train-profile-preview code');
+                if (code) code.textContent = JSON.stringify(trainedProfile, null, 2);
+                // Update counts
+                $('#train-result-count').textContent = trainedProfile.mappings?.length || 0;
+                const total = countAllRulesRecursive(trainedProfile.mappings);
+                $('#train-result-total').textContent = total;
+            };
+            trainEditor.init(trainedProfile, trainXmlContent);
+        }
 
         completeStep($('#train-step-train'));
         activateStep($('#train-step-review'));
@@ -1170,6 +1235,19 @@ function showValidationMessages(container, messages, type) {
         ul.appendChild(li);
     }
     container.appendChild(ul);
+}
+
+// ============================================================
+// Helpers: Recursive rule counter
+// ============================================================
+
+function countAllRulesRecursive(mappings) {
+    let count = 0;
+    for (const m of (mappings || [])) {
+        count++;
+        if (m.fields) count += countAllRulesRecursive(m.fields);
+    }
+    return count;
 }
 
 // ============================================================

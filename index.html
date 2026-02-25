@@ -388,9 +388,19 @@
                         <p class="text-muted">Namespace: <code id="xml-profile-ns"></code></p>
                         <p class="text-muted">Mappings: <span id="xml-profile-count"></span></p>
                         <div class="button-group" style="margin-top: 0.5rem;">
+                            <button id="xml-btn-edit-profile" class="btn btn-small btn-primary">Edit Profile</button>
                             <button id="xml-btn-export-profile" class="btn btn-small">Export</button>
                             <button id="xml-btn-delete-profile" class="btn btn-small btn-danger-text">Delete</button>
                         </div>
+                    </div>
+                    <!-- Inline profile editor (shown/hidden) -->
+                    <div id="xml-profile-editor-container" class="hidden" style="margin-top: 1rem;">
+                        <div id="xml-mapping-editor"></div>
+                        <div class="button-group" style="margin-top: 0.75rem;">
+                            <button id="xml-btn-save-edited-profile" class="btn btn-success btn-small">Save Changes</button>
+                            <button id="xml-btn-close-editor" class="btn btn-small">Close Editor</button>
+                        </div>
+                        <p id="xml-editor-status" class="status-text"></p>
                     </div>
                 </div>
             </section>
@@ -549,9 +559,21 @@
                         <p><strong>Profile:</strong> <span id="train-result-name"></span></p>
                         <p><strong>Namespace:</strong> <code id="train-result-ns"></code></p>
                         <p><strong>Root Element:</strong> <code id="train-result-root"></code></p>
-                        <p><strong>Mappings:</strong> <span id="train-result-count"></span> rules</p>
+                        <p><strong>Mappings:</strong> <span id="train-result-count"></span> top-level rules (<span id="train-result-total"></span> total incl. nested)</p>
                     </div>
-                    <pre id="train-profile-preview" class="xml-preview" style="max-height: 300px;"><code>Profile JSON will appear here.</code></pre>
+
+                    <!-- View toggle: Editor vs JSON -->
+                    <div class="tabs" id="train-review-tabs">
+                        <button class="tab active" data-tab="train-tab-editor">Visual Editor</button>
+                        <button class="tab" data-tab="train-tab-json">Raw JSON</button>
+                    </div>
+                    <div id="train-tab-editor" class="tab-content active">
+                        <div id="train-mapping-editor"></div>
+                    </div>
+                    <div id="train-tab-json" class="tab-content">
+                        <pre id="train-profile-preview" class="xml-preview" style="max-height: 400px;"><code>Profile JSON will appear here.</code></pre>
+                    </div>
+
                     <div class="button-group" style="margin-top: 1rem;">
                         <button id="train-btn-save" class="btn btn-success" disabled>Save Profile</button>
                         <button id="train-btn-export" class="btn btn-primary" disabled>Export as JSON</button>
@@ -585,6 +607,7 @@
     <script type="module" src="js/mapping-engine.js"></script>
     <script type="module" src="js/mapping-store.js"></script>
     <script type="module" src="js/mapping-trainer.js"></script>
+    <script type="module" src="js/mapping-editor.js"></script>
     <script type="module" src="js/app.js"></script>
 </body>
 </html>

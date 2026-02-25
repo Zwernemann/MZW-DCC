@@ -765,6 +765,341 @@ footer a:hover {
 }
 
 /* ============================================================
+   Mapping Editor
+   ============================================================ */
+
+.me-stats-bar {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--color-highlight);
+    border-radius: var(--radius);
+}
+
+.me-stats-text {
+    font-size: 0.85rem;
+    color: var(--color-text);
+    margin-bottom: 0.5rem;
+}
+
+.me-stats-progress {
+    height: 6px;
+    background: var(--color-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.me-stats-fill {
+    height: 100%;
+    background: var(--color-success);
+    border-radius: 3px;
+    transition: width 0.3s;
+}
+
+.me-section {
+    margin-bottom: 1rem;
+}
+
+.me-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.me-section-header h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.me-details summary {
+    cursor: pointer;
+    padding: 0.5rem 0;
+}
+
+.me-details summary h3 {
+    display: inline;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+/* Mapping table */
+.me-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.me-table th,
+.me-table td {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--color-border);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.me-table th {
+    background: var(--color-bg);
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.me-row-array {
+    background: #f0f7ff;
+}
+
+.me-row-nested > td {
+    padding: 0;
+    border: none;
+}
+
+.me-nested-container {
+    padding: 0.5rem 0.75rem 0.5rem 1.5rem;
+    background: #fafbfc;
+    border-left: 3px solid var(--color-primary);
+}
+
+.me-nested-container details summary {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+}
+
+.me-table-nested {
+    font-size: 0.75rem;
+}
+
+.me-table-nested th,
+.me-table-nested td {
+    padding: 0.25rem 0.4rem;
+}
+
+.me-inline-input {
+    width: 100%;
+    min-width: 80px;
+    padding: 0.2rem 0.4rem;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    font-size: inherit;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    background: transparent;
+    color: var(--color-text);
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.me-inline-input:hover {
+    border-color: var(--color-border);
+    background: white;
+}
+
+.me-inline-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    background: white;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.me-inline-input.me-static {
+    color: var(--color-success);
+    font-style: italic;
+}
+
+.me-type-select {
+    padding: 0.2rem 0.3rem;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    font-size: inherit;
+    font-family: inherit;
+    background: transparent;
+    cursor: pointer;
+    color: var(--color-text-muted);
+}
+
+.me-type-select:hover {
+    border-color: var(--color-border);
+    background: white;
+}
+
+.me-type-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.me-cell-target {
+    min-width: 160px;
+    font-weight: 500;
+}
+
+.me-cell-source {
+    min-width: 200px;
+}
+
+.me-cell-details {
+    min-width: 80px;
+}
+
+.me-cell-actions {
+    white-space: nowrap;
+    width: 1%;
+}
+
+.me-cell-actions .btn {
+    margin-left: 0.25rem;
+}
+
+/* Drop active highlight */
+.me-drop-active {
+    border-color: var(--color-primary) !important;
+    background: var(--color-highlight) !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2) !important;
+}
+
+/* Unmapped fields */
+.me-unmapped-category {
+    margin-bottom: 0.75rem;
+}
+
+.me-unmapped-category h4 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.me-unmapped-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.me-unmapped-chip {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border: 1px dashed var(--color-border);
+    border-radius: 0.25rem;
+    font-size: 0.8rem;
+    background: white;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.me-unmapped-chip:hover {
+    border-color: var(--color-primary);
+    background: var(--color-highlight);
+    color: var(--color-primary);
+    border-style: solid;
+}
+
+.me-unmapped-chip.me-required {
+    border-color: #f59e0b;
+    color: #92400e;
+    background: #fffbeb;
+}
+
+.me-unmapped-chip.me-required:hover {
+    border-color: var(--color-primary);
+    background: var(--color-highlight);
+    color: var(--color-primary);
+}
+
+/* Source XML tree */
+.me-source-tree {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 0.78rem;
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: #fafbfc;
+    padding: 0.5rem;
+}
+
+.me-tree-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.15rem 0;
+    white-space: nowrap;
+}
+
+.me-tree-row:hover {
+    background: var(--color-highlight);
+}
+
+.me-tree-toggle {
+    width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    user-select: none;
+}
+
+.me-tree-name {
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+.me-tree-attr-name {
+    color: #9333ea;
+    font-weight: 400;
+}
+
+.me-tree-count {
+    font-size: 0.7rem;
+    color: var(--color-primary);
+    margin-left: 0.15rem;
+}
+
+.me-tree-path {
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+    cursor: grab;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.me-tree-path:hover {
+    background: var(--color-primary);
+    color: white;
+}
+
+.me-tree-path:active {
+    cursor: grabbing;
+}
+
+.me-tree-value {
+    color: var(--color-success);
+    font-size: 0.72rem;
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.me-tree-attr {
+    opacity: 0.85;
+}
+
+.me-tree-children {
+    /* toggled via JS */
+}
+
+.badge-info {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+/* ============================================================
    Responsive
    ============================================================ */
 
