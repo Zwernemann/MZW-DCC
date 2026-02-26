@@ -40,11 +40,11 @@ XML Convert:     XML  ──Mapping Profile──▶  DCC-JSON  ──▶  DCC X
 PDF Upload:      PDF  ──Claude AI──▶        DCC-JSON  ──▶  DCC XML v3.3.0
 ```
 
-**Train Mapping** is a one-time setup step. You provide an XSD schema and a sample XML file, and Claude performs an exhaustive schema analysis to generate a mapping profile — a set of XPath-based rules that map your proprietary XML structure to the DCC-JSON intermediate format. The profile is saved in localStorage and can be exported/imported as JSON. A visual editor with drag-and-drop allows you to review, refine, and extend the generated mappings.
+**Train Mapping** is a one-time setup step. You provide an XSD schema and a sample XML file, and the LLM performs an exhaustive schema analysis to generate a mapping profile — a set of XPath-based rules that map your proprietary XML structure to the DCC-JSON intermediate format. The profile is saved in localStorage and can be exported/imported as JSON. A visual editor with drag-and-drop allows you to review, refine, and extend the generated mappings.
 
 **XML Convert** applies a previously trained mapping profile to transform structured XML data into DCC format. This runs entirely in the browser with zero API calls, making it fast, free, and private. Profiles are auto-detected based on XML namespace and root element.
 
-**PDF Upload** uses the Claude API to intelligently extract calibration data from unstructured PDF text — certificate numbers, measurement results, equipment details, conformity statements, and more.
+**PDF Upload** uses the Anthropic-Claude API to intelligently extract calibration data from unstructured PDF text — certificate numbers, measurement results, equipment details, conformity statements, and more.
 
 ### Data Coverage
 
