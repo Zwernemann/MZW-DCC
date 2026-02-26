@@ -256,11 +256,17 @@ MZW-DCC/
 - [D-SI Repository (PTB GitLab)](https://gitlab1.ptb.de/siunit/d-si)
 - [GEMIMEG-Tool 2](https://gemimeg-tool.ptb.de)
 
-## Contact
+---
 
-Zwernemann Medienentwicklung
-Martin Zwernemann
-www.zwernemann.de
+## Contact & Support
+
+**Zwernemann Medienentwicklung**
+79730 Murg, Germany
+
+[To the website](https://www.zwernemann.de/widerrufsbutton-fuer-magento-2/)
+
+If you have questions, problems, or ideas for new features – feel free to get in touch.
+
 
 ## License
 
