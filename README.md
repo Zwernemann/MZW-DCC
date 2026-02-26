@@ -262,7 +262,7 @@ MZW-DCC/
 **Zwernemann Medienentwicklung**
 79730 Murg, Germany
 
-[To the website](https://www.zwernemann.de/widerrufsbutton-fuer-magento-2/)
+[To the website](https://www.zwernemann.de/)
 
 If you have questions, problems, or ideas for new features – feel free to get in touch.
 
