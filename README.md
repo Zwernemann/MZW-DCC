@@ -259,7 +259,8 @@ MZW-DCC/
 
 ## Contact & Support
 
-**Zwernemann Medienentwicklung**
+**Zwernemann Medienentwicklung**\
+Martin Zwernemann\
 79730 Murg, Germany
 
 [To the website](https://www.zwernemann.de/)
